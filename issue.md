@@ -1,7 +1,7 @@
 # MINIX RISC-V Port Issues / MINIX RISC-V 移植问题清单
 
 **Date / 日期**: 2026-02-16  
-**Version / 版本**: 1.11
+**Version / 版本**: 1.14
 **Scope / 范围**: RISC-V 64-bit port, evidence includes file/line references.
 
 本文件记录 RISC-V 64 位移植的具体问题与证据（含文件/行号），并给出修复建议。  
@@ -25,6 +25,7 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   1) `#16` VFS 服务端点“先写后验”可能弱化代际校验
   2) `#17` 启动期 safecopy 噪声错误闭环（定位根因并降噪）
   3) `A3` 含盘场景 `minix-service`/`virtio_blk_mmio` SIGSEGV
+  4) `#24` in-tree 交叉链接器不支持 `R_RISCV_RELAX`，阻断增量重建
 - P2 / 中优先（功能完备性与平台能力）:
   1) `A2` RV64 动态装载链路（`MKPIC`/`ld.elf_so`）补齐与验证
   2) `#15` RISC-V SMP 核心实现缺失
@@ -97,21 +98,37 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
       Evidence: `minix/servers/vfs/exec.c:306`
     4) Keep the test binary minimal (single `main`, no threads) to isolate VM/exec issues. / 测试程序保持最小化以隔离 VM/exec 问题。
 
-### A3) minix-service SIGSEGV when starting virtio_blk_mmio (historical with-disk profile) / 启动 virtio_blk_mmio 时 minix-service 崩溃（历史含盘场景）
+### A3) userland `memset` stack-top SIGSEGV (ramdisk profile mitigated; with-disk virtio path pending recheck) / 用户态 `memset` 栈顶 SIGSEGV（ramdisk 轮廓已缓解；含盘 virtio 路径待复核）
 - Evidence / 证据:
   - `./minix/tests/riscv64/run_tests.sh all` (2026-01-31, with-disk profile) fails the VirtIO block I/O smoke test; running
     `/sbin/minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0` triggers SIGSEGV.  
     Logs: `/tmp/minix-riscv64-tests.log`, `/home/donz/minix/obj/test-logs/boot_test.*.log`
+  - 2026-02-16 ramdisk smoke repro: `/bin/mount -t procfs none /proc` invokes `/sbin/minix-service up /service/procfs ...` and crashes with SIGSEGV, so `/proc` cannot be mounted and `cat /proc/meminfo` fails with `No such file or directory`.
+    Log: `/tmp/qemu-proctest.log`
+  - 2026-02-16 interactive shell repro: `ps -aux` crashes with
+    `VM: pagefault: SIGSEGV ... bad addr 0xefbffff0; err 0xf nopage write`,
+    `stacktrace ps/... pc=0x50608 sp=0xefbffff0`, then `Segmentation fault`.
+    This matches the same stack-top fault signature seen in `minix-service`/`init`.
+    Log excerpt provided in-session.
   - Stacktrace in QEMU output: `pc=0x3bb38 sp=0xefbffff0 ra=0x3bbf0`, VM reports `SIGSEGV ... err 0xf nopage write`.
   - Symbol mapping (no DWARF line info): `minix/commands/minix-service/obj/minix-service` shows
     `0x3bb34 T memset`, so the fault PC is inside `memset` in the minix-service binary.
+  - Symbol mapping for `ps`: `obj/destdir.evbriscv64/bin/ps` shows
+    `0x50604 T memset`; the observed `pc=0x50608` is inside the same function.
+  - Root-cause codegen check: RV64 `memset` in affected binaries showed self-call recursion on short-length path (stack growth until fault).  
+    受影响二进制中的 RV64 `memset` 在短长度路径出现自调用递归，导致栈持续增长至缺页。
+  - Fix applied in tree: disable recursive memset codegen pattern for RV64 generic `memset.c` via  
+    `lib/libc/arch/riscv/string/Makefile.inc` (`COPTS.memset.c+= -fno-builtin-memset -fno-tree-loop-distribute-patterns`).
 - Impact / 影响:
-  - virtio_blk_mmio cannot be started; virtio I/O smoke test fails.
-- Hypothesis / 假设:
-  - Userland stack or address-space mapping issue (sp at `0xefbffff0`) during RS start path.
+  - Before fix: user commands (`ps`) and service startup paths (`minix-service`) could crash with stack-top SIGSEGV, blocking `/proc` functional checks.
+  - After fix in current working tree: ramdisk smoke no longer reproduces this crash signature.
+- Update / 进展:
+  - 2026-02-16 QEMU re-test (ramdisk profile) after rebuilding libc/ramdisk/memory:
+    - `ps -aux` completes and returns shell prompt, no SIGSEGV.
+    - `cat /proc/meminfo` returns data successfully (still shows one recoverable safecopy fallback; tracked in `#17`).
 - Next steps / 下一步:
-  - Rebuild `minix-service` with DWARF v4 or use a tool that can decode DWARF v5, then resolve `pc=0x3bb38`.
-  - Add tracing around RS `RS_UP` request path in `minix/commands/minix-service/minix-service.c` and verify stack setup.
+  - Re-run with-disk profile (`virtio_blk_mmio` + service up path) to verify whether A3 is fully closed or narrowed to A4/config profile.
+  - If with-disk still crashes, capture fresh PC/SP and compare against current `memset` symbols to separate remaining causes from the resolved recursion bug.
 
 ### A4) virtio_blk_mmio startup failure in diskless QEMU smoke (configuration-driven) / 无盘 QEMU 冒烟中 virtio_blk_mmio 启动失败（配置驱动）
 - Evidence / 证据:
@@ -330,6 +347,25 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Extend RISC-V exception fault window handling to include memset recovery, matching i386/ARM behavior.
   - Ensure `vm_memset` can return `VMSUSPEND` on recoverable write faults.
 
+### 24) In-tree RISC-V linker cannot handle `R_RISCV_RELAX`, blocking incremental rebuilds / in-tree RISC-V 链接器不支持 `R_RISCV_RELAX`，阻断增量重建
+- Evidence / 证据:
+  - Rebuilding `minix/drivers/storage/memory` with in-tree toolchain fails at link stage:
+    `ld: unrecognized relocation (0x33)` from `libblockdriver.a(driver_st.o)`.
+  - In-tree linker version is old:
+    `obj/tooldir.Linux-6.12.63+deb13-amd64-x86_64/riscv64-elf32-minix/bin/ld --version`
+    reports `GNU ld (NetBSD Binutils nb1) 2.23.2`.
+  - Affected archives include many `R_RISCV_RELAX` relocations:
+    `obj/destdir.evbriscv64/usr/lib/libblockdriver.a`,
+    `obj/destdir.evbriscv64/usr/lib/libchardriver.a` (`readelf -r`).
+  - Temporary validation workaround: using host `riscv64-unknown-elf-ld` (binutils 2.44) allows link to proceed.
+- Impact / 影响:
+  - Blocks rebuilding core components (`service/memory` etc.) with the intended in-tree GCC toolchain flow.
+  - Forces ad-hoc linker substitution, reducing reproducibility and increasing CI/local divergence risk.
+- Suggested fix / 修复建议:
+  - Upgrade/refresh in-tree RISC-V binutils (`ld`) to a version that supports `R_RISCV_RELAX`.
+  - Add a build-time toolchain capability check (fail fast with actionable message when linker is too old).
+  - If upgrade is not immediate, add a documented temporary path in `README-RISCV64.md` for compatible linker usage.
+
 ## Moderate / 中等
 
 ### 11) Minimal kernel build is not RISC-V-ready / minimal_kernel 未支持 RISC-V
@@ -363,12 +399,23 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - `/tmp/qemu-fix20.log:415` and `/tmp/qemu-fix20.log:1040` show `kcall safecopy err=...fc1c`.
   - `/tmp/qemu-fix20.log:4159-4160` shows `kcall safecopy err=...fff2` and `do_safecopy_to: err -14 caller=10`.
   - System still continues to shell after these messages.
+  - 2026-02-16 `/proc/meminfo` interactive repro shows `procfs` `REQ_READ` (`call=2579`) hitting
+    `kcall safecopy err=...fff2` / `do_safecopy_to: err -14`, then succeeding on immediate retry
+    (`fsdriver reply ... r=-14` followed by `r=0`) and printing meminfo successfully.
 - Impact / 影响:
   - Currently appears recoverable, but it adds noise and may hide real regressions.
   - 若错误路径扩大，可能在高负载或不同镜像下演变为实际功能故障。
 - Suggested fix / 修复建议:
   - Correlate each safecopy failure with request type/grant lifecycle.
   - Add focused tracing around MFS/VFS grant usage for the failing offsets and gids.
+- Update / 进展:
+  - VFS now disables first-pass `CPF_TRY` for magic-grant read/stat/getdents/rdlink requests targeting mounts whose fs type is `procfs`, reducing fail-fast `EFAULT -> ERESTART` churn on `/proc/*` reads while keeping other filesystems unchanged.
+    / VFS 已在目标文件系统类型为 `procfs` 的 magic grant 读/状态/getdents/rdlink 请求上关闭首轮 `CPF_TRY`，以减少 `/proc/*` 读取时的 `EFAULT -> ERESTART` 抖动；其他文件系统路径不变。
+    Evidence: `minix/servers/vfs/request.c`
+- Priority assessment / 优先级评估:
+  - Keep at `P1` for now: the fault appears recoverable (retry succeeds), but repeated fallback/retry
+    in hot read paths (`/proc/*`) can become a performance/logging storm and obscure real regressions.
+    After adding counters/rate limits and confirming no functional impact under load, consider downgrading to `P2`.
 
 ### 19) Excessive unconditional debug logging in kernel/VM/RS obscures real faults / kernel/VM/RS 无条件调试日志过多，掩盖真实故障
 - Evidence / 证据:

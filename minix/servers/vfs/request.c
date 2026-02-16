@@ -23,6 +23,26 @@
 #include "vmnt.h"
 #include "vnode.h"
 
+/*===========================================================================*
+ *			req_magic_grant_cpflag			     *
+ *===========================================================================*/
+static int
+req_magic_grant_cpflag(endpoint_t fs_e)
+{
+	struct vmnt *vmp;
+
+	vmp = find_vmnt(fs_e);
+
+	/*
+	 * ProcFS data is generated in-memory; applying CPF_TRY there mainly
+	 * causes fail-fast EFAULT + retry churn on cold user mappings.
+	 */
+	if (vmp != NULL && strcmp(vmp->m_fstype, "procfs") == 0)
+		return 0;
+
+	return CPF_TRY;
+}
+
 
 /*===========================================================================*
  *			req_breadwrite_actual				     *
@@ -368,7 +388,7 @@ int req_getdents(
 	int r;
 
 	r = req_getdents_actual(fs_e, inode_nr, pos, buf, size, new_pos,
-		direct, CPF_TRY);
+		direct, req_magic_grant_cpflag(fs_e));
 
 	if (r == ERESTART) {
 		assert(!direct);
@@ -794,7 +814,7 @@ int req_rdlink(endpoint_t fs_e, ino_t inode_nr, endpoint_t proc_e,
 	int r;
 
 	r = req_rdlink_actual(fs_e, inode_nr, proc_e, buf, len, direct,
-		CPF_TRY);
+		req_magic_grant_cpflag(fs_e));
 
 	if (r == ERESTART) {
 		assert(!direct);
@@ -918,7 +938,8 @@ int req_readwrite(endpoint_t fs_e, ino_t inode_nr, off_t pos,
 	int r;
 
 	r = req_readwrite_actual(fs_e, inode_nr, pos, rw_flag, user_e,
-		user_addr, num_of_bytes, new_posp, cum_iop, CPF_TRY);
+		user_addr, num_of_bytes, new_posp, cum_iop,
+		req_magic_grant_cpflag(fs_e));
 
 	if (r == ERESTART) {
 		if ((r=vm_vfs_procctl_handlemem(user_e, (vir_bytes) user_addr,
@@ -1145,11 +1166,12 @@ int req_stat_actual(endpoint_t fs_e, ino_t inode_nr, endpoint_t proc_e,
  *				req_stat	       			     *
  *===========================================================================*/
 int req_stat(endpoint_t fs_e, ino_t inode_nr, endpoint_t proc_e,
-	vir_bytes buf)
+		vir_bytes buf)
 {
 	int r;
 
-	r = req_stat_actual(fs_e, inode_nr, proc_e, buf, CPF_TRY);
+	r = req_stat_actual(fs_e, inode_nr, proc_e, buf,
+		req_magic_grant_cpflag(fs_e));
 
 	if (r == ERESTART) {
 		if((r=vm_vfs_procctl_handlemem(proc_e, (vir_bytes) buf,
