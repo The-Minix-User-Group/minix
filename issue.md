@@ -602,15 +602,20 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Keep explicit opt-in for persistent images only when doing long-running
     stateful experiments.
 - Update / 进展:
-  - `multi_smoke_gate.sh` now defaults to a per-run fresh disk image under
-    `LOG_ROOT`, and adds `--reuse-disk` for explicit persistent-image reuse.
-    `multi_smoke_gate.sh` 现默认在 `LOG_ROOT` 下创建每轮全新磁盘镜像，
-    并新增 `--reuse-disk` 作为显式复用开关。
+  - `multi_smoke_gate.sh` now creates a fresh with-disk image per round by
+    default (e.g. `...round1.img`, `...round2.img`), and uses a single shared
+    image only when `--reuse-disk` is explicitly set.
+    `multi_smoke_gate.sh` 现默认按轮次创建独立带盘镜像
+    （如 `...round1.img`、`...round2.img`）；仅在显式设置
+    `--reuse-disk` 时跨轮复用同一镜像。
   - Evidence / 证据: `minix/tests/riscv64/multi_smoke_gate.sh`
 - Status / 状态:
-  - Fixed in working tree; one-round diskless+with-disk smoke passed after
-    the change.
-    已在当前工作树修复；变更后执行一轮无盘+带盘 smoke 均通过。
+  - Fixed in working tree; verified with
+    `multi_smoke_gate.sh --rounds 2 --timeout 60` (4/4 passed) and per-round
+    image creation logs (`...round1.img`, `...round2.img`).
+    已在当前工作树修复；通过
+    `multi_smoke_gate.sh --rounds 2 --timeout 60`（4/4 通过）复验，
+    且日志确认按轮创建独立镜像（`...round1.img`、`...round2.img`）。
 
 ### 31) smoke/repro gate scripts under-check runner semantics and host portability / smoke/repro 门禁脚本对执行语义与宿主可移植性校验不足
 - Evidence / 证据:

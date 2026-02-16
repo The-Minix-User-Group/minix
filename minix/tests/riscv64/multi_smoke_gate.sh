@@ -44,8 +44,8 @@ Options:
   --timeout SEC                  Per-run timeout seconds (default: 140)
   --with-disk                    Enable with-disk runs (default: on)
   --without-disk                 Disable with-disk runs
-  --disk-image PATH              Raw disk image path (default: <log-root>/minix-smoke-gate.img)
-  --reuse-disk                   Reuse existing disk image at --disk-image
+  --disk-image PATH              Disk image base path (default: <log-root>/minix-smoke-gate.img)
+  --reuse-disk                   Reuse a single disk image across rounds
   --disk-size-mb N               Disk image size in MB if created (default: 128)
   --log-root PATH                Output log directory
   --max-total-safecopy N         Triage threshold (default: 24)
@@ -71,6 +71,33 @@ while [ $# -gt 0 ]; do
         *) echo "unknown option: $1" >&2; usage; exit 1 ;;
     esac
 done
+
+prepare_disk_image() {
+    local disk_image="$1"
+
+    mkdir -p "$(dirname "$disk_image")"
+    if [ "$REUSE_DISK" -eq 1 ] && [ -f "$disk_image" ]; then
+        echo "[INFO] reusing disk image: $disk_image"
+    else
+        rm -f "$disk_image"
+        truncate -s "${DISK_SIZE_MB}M" "$disk_image"
+        echo "[INFO] fresh disk image prepared: $disk_image"
+    fi
+}
+
+disk_image_for_round() {
+    local round="$1"
+
+    if [ "$REUSE_DISK" -eq 1 ]; then
+        echo "$DISK_IMAGE"
+        return
+    fi
+
+    case "$DISK_IMAGE" in
+        *.img) echo "${DISK_IMAGE%.img}.round${round}.img" ;;
+        *) echo "${DISK_IMAGE}.round${round}.img" ;;
+    esac
+}
 
 if [ ! -x "$QEMU_SCRIPT" ]; then
     echo "qemu script not found: $QEMU_SCRIPT" >&2
@@ -99,12 +126,9 @@ if [ "$WITH_DISK" -eq 1 ]; then
     if [ -z "$DISK_IMAGE" ]; then
         DISK_IMAGE="$LOG_ROOT/minix-smoke-gate.img"
     fi
-    if [ "$REUSE_DISK" -eq 1 ] && [ -f "$DISK_IMAGE" ]; then
-        echo "[INFO] reusing disk image: $DISK_IMAGE"
-    else
-        rm -f "$DISK_IMAGE"
-        truncate -s "${DISK_SIZE_MB}M" "$DISK_IMAGE"
-        echo "[INFO] fresh disk image prepared: $DISK_IMAGE"
+
+    if [ "$REUSE_DISK" -eq 1 ]; then
+        prepare_disk_image "$DISK_IMAGE"
     fi
 fi
 
@@ -186,9 +210,15 @@ run_one() {
 
 i=1
 while [ "$i" -le "$ROUNDS" ]; do
+    round_disk_image=""
+
     run_one "diskless" "$i"
     if [ "$WITH_DISK" -eq 1 ]; then
-        run_one "withdisk" "$i" -i "$DISK_IMAGE"
+        round_disk_image="$(disk_image_for_round "$i")"
+        if [ "$REUSE_DISK" -eq 0 ]; then
+            prepare_disk_image "$round_disk_image"
+        fi
+        run_one "withdisk" "$i" -i "$round_disk_image"
     fi
     i=$((i + 1))
 done
