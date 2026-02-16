@@ -1,7 +1,7 @@
 # MINIX RISC-V Port Issues / MINIX RISC-V 移植问题清单
 
 **Date / 日期**: 2026-02-16  
-**Version / 版本**: 1.15
+**Version / 版本**: 1.17
 **Scope / 范围**: RISC-V 64-bit port, evidence includes file/line references.
 
 本文件记录 RISC-V 64 位移植的具体问题与证据（含文件/行号），并给出修复建议。  
@@ -26,6 +26,7 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   2) `#17` 启动期 safecopy 噪声错误闭环（定位根因并降噪）
   3) `A3` 含盘场景 `minix-service`/`virtio_blk_mmio` SIGSEGV
   4) `#25` 内建 GCC 不支持 `-mabi=lp64d`，阻断部分 GCC-only 增量构建
+  5) `#26` RS `do_up`/`do_update` 失败路径未回收 slot 资源，`RSS_COPY` 可触发可重复内存泄漏
 - P2 / 中优先（功能完备性与平台能力）:
   1) `A2` RV64 动态装载链路（`MKPIC`/`ld.elf_so`）补齐与验证
   2) `#15` RISC-V SMP 核心实现缺失
@@ -346,6 +347,32 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Add fault-aware RISC-V `phys_memset` semantics (fault address/status return or dedicated fault labels).
   - Extend RISC-V exception fault window handling to include memset recovery, matching i386/ARM behavior.
   - Ensure `vm_memset` can return `VMSUSPEND` on recoverable write faults.
+- Update / 进展:
+  - Added RISC-V memset fault-recovery plumbing in current working tree:
+    `phys_memset` now returns fault status, `exception.c` handles `in_memset`
+    windows (`memset_fault` / `memset_fault_in_kernel`), and `vm_memset`
+    wraps the memset loop with `catch_pagefaults` and returns `VMSUSPEND`
+    for recoverable user-mapping faults.
+    已在当前工作区补齐 RISC-V memset 故障恢复链路：`phys_memset` 返回故障状态，
+    `exception.c` 新增 `in_memset` 窗口处理（`memset_fault` / `memset_fault_in_kernel`），
+    `vm_memset` 通过 `catch_pagefaults` 包裹并在可恢复用户映射故障时返回 `VMSUSPEND`。
+  - Evidence: `minix/kernel/arch/riscv64/phys_copy.S`,
+    `minix/kernel/arch/riscv64/exception.c`,
+    `minix/kernel/arch/riscv64/memory.c`,
+    `minix/kernel/arch/riscv64/include/arch_proto.h`
+  - 2026-02-16 runtime smoke revalidation with GCC-built kernel:
+    `./minix/scripts/qemu-riscv64.sh -s -k minix/kernel/obj/kernel -B obj/destdir.evbriscv64`
+    and in-guest commands `ps -aux`, `cat /proc/meminfo`,
+    `/sbin/minix-service sysctl srv_status` all returned `RC=0`;
+    no kernel panic and no `SIGSEGV` signature were observed.
+    2026-02-16 使用 GCC 重建内核后完成运行复验：
+    `ps -aux`、`cat /proc/meminfo`、`minix-service sysctl srv_status`
+    均返回 `RC=0`，未出现 kernel panic 或 `SIGSEGV` 特征。
+    Log: `/tmp/qemu-p0-smoke.log`
+  - Remaining closure condition / 闭环前提:
+    still need targeted fault-injection coverage to prove `VMSUSPEND` recovery
+    under intentional user-memory write faults.
+    仍需补充定向故障注入验证，以确认刻意构造写缺页时可稳定走 `VMSUSPEND` 恢复路径。
 
 ### 24) In-tree RISC-V linker cannot handle `R_RISCV_RELAX`, blocking incremental rebuilds (mitigated) / in-tree RISC-V 链接器不支持 `R_RISCV_RELAX`，阻断增量重建（已缓解）
 - Evidence / 证据:
@@ -386,6 +413,27 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Normalize RISC-V ABI flag selection for in-tree GCC capability (e.g., `-mabi=lp64` fallback).
   - Add compiler capability probing and emit actionable diagnostics when ABI flags are unsupported.
   - Keep per-component overrides documented until GCC flag baseline is unified.
+
+### 26) RS slot/exec cleanup is missing on several `do_up`/`do_update` error paths, causing repeatable `RSS_COPY` memory leaks / RS 在若干 `do_up`/`do_update` 失败路径缺少 slot/exec 回收，`RSS_COPY` 可触发可重复内存泄漏
+- Evidence / 证据:
+  - `do_up()` allocates a slot then returns directly on duplicate checks without `free_slot()`:
+    `minix/servers/rs/request.c:31`, `minix/servers/rs/request.c:64`,
+    `minix/servers/rs/request.c:71-75`, `minix/servers/rs/request.c:76-80`,
+    `minix/servers/rs/request.c:81-86`.
+  - `do_update()` regular-update path allocates a slot and returns directly when `init_slot()` fails, also without `free_slot()`:
+    `minix/servers/rs/request.c:725-736`.
+  - `init_slot()` may load and retain an in-memory executable copy (`r_exec`) when `RSS_COPY` is requested:
+    `minix/servers/rs/manager.c:1629-1661`, `minix/servers/rs/manager.c:1372-1403`.
+  - The normal cleanup path for this memory is `free_slot()->free_exec()`:
+    `minix/servers/rs/manager.c:2100-2114`, `minix/servers/rs/manager.c:1424-1454`.
+- Impact / 影响:
+  - Repeated `RS_UP`/`RS_UPDATE` requests that fail after `init_slot()` can leak executable-copy heap buffers in RS.
+  - 典型可复现路径是：带 `RSS_COPY` 的请求在重复标签/设备号检查处失败，导致 `r_exec` 未释放并被下一次 slot 复用覆盖，形成长期泄漏。
+  - This is a control-plane resource-exhaustion risk (RS heap growth / eventual ENOMEM), degrading service-management reliability.
+- Suggested fix / 修复建议:
+  - In `do_up()` and `do_update()`, add a unified error-exit path that always calls `free_slot(rp/new_rp)` when a slot has been initialized but not successfully created/published.
+  - Clear `r_exec` ownership deterministically on all post-`init_slot()` failure branches (including duplicate checks).
+  - Add a regression test that issues repeated failing `RSS_COPY` requests and asserts no net RS memory growth.
 
 ## Moderate / 中等
 
@@ -433,6 +481,12 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - VFS now disables first-pass `CPF_TRY` for magic-grant read/stat/getdents/rdlink requests targeting mounts whose fs type is `procfs`, reducing fail-fast `EFAULT -> ERESTART` churn on `/proc/*` reads while keeping other filesystems unchanged.
     / VFS 已在目标文件系统类型为 `procfs` 的 magic grant 读/状态/getdents/rdlink 请求上关闭首轮 `CPF_TRY`，以减少 `/proc/*` 读取时的 `EFAULT -> ERESTART` 抖动；其他文件系统路径不变。
     Evidence: `minix/servers/vfs/request.c`
+  - 2026-02-16 `qemu-p0-smoke` (`/tmp/qemu-p0-smoke.log`) still shows a recoverable
+    procfs safecopy fallback (`err -996`) on `/proc/meminfo` path, but command
+    return remains successful (`__RC_MEMINFO__:0`) and no crash is observed.
+    2026-02-16 的 `qemu-p0-smoke`（`/tmp/qemu-p0-smoke.log`）在 `/proc/meminfo`
+    路径仍可见可恢复 safecopy 回退（`err -996`），但命令返回成功
+    （`__RC_MEMINFO__:0`），未出现崩溃。
 - Priority assessment / 优先级评估:
   - Keep at `P1` for now: the fault appears recoverable (retry succeeds), but repeated fallback/retry
     in hot read paths (`/proc/*`) can become a performance/logging storm and obscure real regressions.

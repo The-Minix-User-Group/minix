@@ -97,7 +97,7 @@ void riscv64_switch_address_space(struct proc *p);
 
 /* phys_copy.S */
 phys_bytes phys_copy(phys_bytes src, phys_bytes dst, phys_bytes size);
-void phys_memset(phys_bytes dst, unsigned long c, phys_bytes size);
+phys_bytes phys_memset(phys_bytes dst, unsigned long c, phys_bytes size);
 void phys_copy_fault(void);
 void phys_copy_fault_in_kernel(void);
 

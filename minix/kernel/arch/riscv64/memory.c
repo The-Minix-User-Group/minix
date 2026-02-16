@@ -421,6 +421,7 @@ int vm_memset(struct proc *caller, endpoint_t who, phys_bytes ph, int c,
     phys_bytes left = count;
     phys_bytes phys;
     phys_bytes chunk;
+    phys_bytes pfa = 0;
     int r;
 
     if ((r = check_resumed_caller(caller)) != OK)
@@ -431,6 +432,8 @@ int vm_memset(struct proc *caller, endpoint_t who, phys_bytes ph, int c,
         return ESRCH;
 
     c &= 0xFF;
+    assert(!catch_pagefaults);
+    catch_pagefaults = 1;
 
     while (left > 0) {
         chunk = left;
@@ -441,19 +444,34 @@ int vm_memset(struct proc *caller, endpoint_t who, phys_bytes ph, int c,
                 if (caller) {
                     vm_suspend(caller, whoptr, cur_ph, count,
                         VMSTYPE_KERNELCALL, 1);
+                    assert(catch_pagefaults);
+                    catch_pagefaults = 0;
                     return VMSUSPEND;
                 }
+                assert(catch_pagefaults);
+                catch_pagefaults = 0;
                 return EFAULT;
             }
         } else {
             phys = cur_ph;
         }
 
-        phys_memset(phys, (unsigned long)c, chunk);
+        pfa = phys_memset(phys, (unsigned long)c, chunk);
+        if (pfa) {
+            if (whoptr && caller) {
+                vm_suspend(caller, whoptr, ph, count, VMSTYPE_KERNELCALL, 1);
+                assert(catch_pagefaults);
+                catch_pagefaults = 0;
+                return VMSUSPEND;
+            }
+            panic("vm_memset: pf %lx addr=%lx len=%lu\n", pfa, phys, chunk);
+        }
         cur_ph += chunk;
         left -= chunk;
     }
 
+    assert(catch_pagefaults);
+    catch_pagefaults = 0;
     return OK;
 }
 

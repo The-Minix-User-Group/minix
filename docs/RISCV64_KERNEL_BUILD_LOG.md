@@ -1,7 +1,7 @@
 # RISC-V MINIX Kernel Build Log / RISC-V MINIX 内核构建日志
 
 **Last updated / 最后更新**: 2026-02-16  
-**Version / 版本**: 1.4  
+**Version / 版本**: 1.5  
 **Purpose / 用途**: Append-only record of build commands and outcomes. / 记录构建命令与结果（追加式）。
 
 ## Log Entries / 日志条目
@@ -232,3 +232,45 @@ MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
 **Follow-up / 后续**:
 - Keep `issue.md` `#17` (procfs safecopy fallback noise) and `#25`
   (GCC-only incremental ABI-flag compatibility) under ongoing tracking.
+
+### Entry 11 — P0 Kernel Rebuild + QEMU Smoke Revalidation (2026-02-16) / P0 内核重建 + QEMU 冒烟复验
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Toolchain / 工具链**: `obj/tooldir.Linux-6.12.63+deb13-amd64-x86_64`  
+
+**Goal / 目标**:
+- Rebuild the riscv64 kernel with in-tree GCC after `vm_memset` fault-recovery plumbing changes.
+- Revalidate P0 smoke paths in QEMU (`ps -aux`, `cat /proc/meminfo`, RS status query).
+
+**Build command / 构建命令**:
+```bash
+TOOLDIR=$(echo obj/tooldir.* | awk '{print $1}')
+${TOOLDIR}/bin/nbmake-evbriscv64 \
+  -C minix/kernel -j"$(nproc)" dependall \
+  ACTIVE_CC=gcc \
+  RISCV_ARCH_FLAGS='-march=RV64IMAFD -mcmodel=medany'
+```
+
+**Build result / 构建结果**:
+- `dependall` completed successfully; kernel link finished (`minix/kernel/obj/kernel`).
+- Attempt without `ACTIVE_CC=gcc` selected missing `riscv64-elf32-minix-clang` and failed; rerun with GCC succeeded.
+
+**QEMU smoke execution / QEMU 冒烟执行**:
+```bash
+{ sleep 35; echo 'ps -aux'; sleep 6; echo 'cat /proc/meminfo'; sleep 6; \
+  echo '/sbin/minix-service sysctl srv_status'; sleep 6; } \
+| timeout 220 ./minix/scripts/qemu-riscv64.sh -s \
+    -k minix/kernel/obj/kernel \
+    -B obj/destdir.evbriscv64 \
+  > /tmp/qemu-p0-smoke.log 2>&1 || true
+```
+
+**Observed result / 观察结果**:
+- In-log markers confirm all three commands returned success:
+  `__RC_PS__:0`, `__RC_MEMINFO__:0`, `__RC_SRV__:0`.
+- No `SIGSEGV` signature and no kernel panic were observed in this run.
+- procfs/safecopy fallback noise is still visible but recoverable (commands still succeed), consistent with `issue.md` `#17`.
+
+**Evidence / 证据**:
+- Log: `/tmp/qemu-p0-smoke.log`
+- Marker lines include `__P0_BEGIN__`, `__RC_PS__:0`, `__RC_MEMINFO__:0`, `__RC_SRV__:0`, `__P0_DONE__`.

@@ -1,7 +1,7 @@
 # MINIX RISC-V 64-bit Port Status / MINIX RISC-V 64 位移植状态
 
 **Date / 日期**: 2026-02-16  
-**Version / 版本**: 1.4  
+**Version / 版本**: 1.5  
 **Status / 状态**: Phase 2 stabilization — boots to shell; core smoke mostly passes  
 **Progress / 进度**: ~72% (boot/userland path stabilized; with-disk/driver/toolchain gaps remain)
 
@@ -10,6 +10,8 @@
 **中文**
 - 构建可通过（GCC + workaround 组合），详见 `README-RISCV64.md`。
 - QEMU 可稳定进入 shell，并已通过交互冒烟：`echo SMOKE_OK`、`ps -aux`、`cat /proc/meminfo`。
+- P0 复验：基于 GCC 重建内核的 QEMU 冒烟中，`ps -aux`、`cat /proc/meminfo`、
+  `minix-service sysctl srv_status` 均返回 `RC=0`，未见 `SIGSEGV`/kernel panic。
 - 已验证 `obj.intrgcc` 独立链路可完成 `tools -> distribution -> QEMU`，并消除此前
   `Boot module not found: ds` 的启动报错。
 - 本轮已确认并修复 RV64 用户态 `memset` 递归导致的栈顶 SIGSEGV（见 `issue.md` A3 进展）。
@@ -21,6 +23,9 @@
 - Build passes with GCC + workaround flags; see `README-RISCV64.md` for exact commands.
 - QEMU now reaches a stable shell and passes interactive smoke commands:
   `echo SMOKE_OK`, `ps -aux`, and `cat /proc/meminfo`.
+- P0 revalidation: with a GCC-rebuilt kernel, QEMU smoke confirms
+  `ps -aux`, `cat /proc/meminfo`, and `minix-service sysctl srv_status`
+  all return `RC=0` without `SIGSEGV` or kernel panic signatures.
 - The isolated `obj.intrgcc` path now completes `tools -> distribution -> QEMU`, and
   the previous `Boot module not found: ds` startup failure is no longer reproduced.
 - This cycle confirms and mitigates the RV64 userland `memset` recursion SIGSEGV signature
@@ -61,6 +66,8 @@
 - 使用 `./minix/scripts/qemu-riscv64.sh -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64`
   可直接进入 shell，验证 `obj.intrgcc` 轮廓启动可用。
 - `/proc/meminfo` 路径仍可见一次可恢复 safecopy 回退（先失败后重试成功），属于已知噪声问题（#17）。
+- 新一轮 `qemu-p0-smoke`（`/tmp/qemu-p0-smoke.log`）同样显示 procfs/safecopy 可恢复回退噪声，
+  但命令返回保持成功（`RC=0`）。
 - 含盘 virtio 启动链路仍需单独复测后才能确认 A3 全量闭环。
 
 **English**
@@ -70,6 +77,8 @@
   now boots directly to shell, validating the `obj.intrgcc` runtime profile.
 - `/proc/meminfo` still shows one recoverable safecopy fallback (fail-then-retry-success),
   tracked as known noise in #17.
+- The latest `qemu-p0-smoke` run (`/tmp/qemu-p0-smoke.log`) shows the same recoverable
+  procfs/safecopy fallback noise while command return codes remain successful (`RC=0`).
 - With-disk virtio startup path still needs dedicated revalidation to close A3 end-to-end.
 
 ## Key Issues (Snapshot) / 关键问题（摘要）
@@ -81,7 +90,8 @@
 - A3: with-disk virtio startup path still needs revalidation after `memset` fix.
 - #17: recoverable safecopy fallback noise on `/proc/*` path remains.
 - #25: GCC-only incremental build path may fail on unsupported `-mabi=lp64d`.
-- #23: RV64 `vm_memset` fault-recovery capability gap remains high-priority kernel robustness work.
+- #23: RV64 `vm_memset` recovery plumbing is implemented and smoke-validated; targeted
+  fault-injection validation is still required for full closure.
 
 详见 `issue.md` 的证据与修复建议 / See `issue.md` for evidence and fixes.
 
