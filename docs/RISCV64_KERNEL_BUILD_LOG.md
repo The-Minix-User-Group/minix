@@ -1,7 +1,7 @@
 # RISC-V MINIX Kernel Build Log / RISC-V MINIX 内核构建日志
 
 **Last updated / 最后更新**: 2026-02-16  
-**Version / 版本**: 1.5  
+**Version / 版本**: 1.6  
 **Purpose / 用途**: Append-only record of build commands and outcomes. / 记录构建命令与结果（追加式）。
 
 ## Log Entries / 日志条目
@@ -274,3 +274,68 @@ ${TOOLDIR}/bin/nbmake-evbriscv64 \
 **Evidence / 证据**:
 - Log: `/tmp/qemu-p0-smoke.log`
 - Marker lines include `__P0_BEGIN__`, `__RC_PS__:0`, `__RC_MEMINFO__:0`, `__RC_SRV__:0`, `__P0_DONE__`.
+
+### Entry 12 — `obj.intrgcc` Fully Self-Hosted GCC Toolchain Closure (2026-02-16) / `obj.intrgcc` 完全自举 GCC 工具链收敛
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Objdir / 对象目录**: `obj.intrgcc`
+
+**Goal / 目标**:
+- Close the isolated toolchain path with in-tree GCC frontend commands enabled (`MKGCCCMDS=yes`).
+- Revalidate `distribution` and QEMU boot strictly from `obj.intrgcc`.
+
+**Build commands / 构建命令**:
+```bash
+# 1) tools with in-tree GCC command wrappers/frontends
+MKPCI=no HOST_CFLAGS='-O -fcommon' HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+./build.sh -U -m evbriscv64 -O obj.intrgcc \
+  -V AVAILABLE_COMPILER=gcc -V ACTIVE_CC=gcc -V ACTIVE_CPP=gcc -V ACTIVE_CXX=gcc -V ACTIVE_OBJC=gcc \
+  -V MKGCC=yes -V MKGCCCMDS=yes \
+  tools
+
+# 2) distribution on the same isolated objdir
+MKPCI=no HOST_CFLAGS='-O -fcommon' HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+./build.sh -U -u -j"$(nproc)" -m evbriscv64 -O obj.intrgcc \
+  -V AVAILABLE_COMPILER=gcc -V ACTIVE_CC=gcc -V ACTIVE_CPP=gcc -V ACTIVE_CXX=gcc -V ACTIVE_OBJC=gcc \
+  -V RISCV_ARCH_FLAGS='-march=RV64IMAFD -mcmodel=medany' \
+  -V NOGCCERROR=yes \
+  -V MKPIC=no -V MKPICLIB=no -V MKPICINSTALL=no \
+  -V MKCXX=no -V MKLIBSTDCXX=no -V MKATF=no \
+  -V USE_PCI=no \
+  -V CHECKFLIST_FLAGS='-m -e' \
+  distribution
+```
+
+**Toolchain artifact checks / 工具链产物校验**:
+```bash
+TOOLDIR=$(echo obj.intrgcc/tooldir.*-x86_64)
+ls -l \
+  "$TOOLDIR/bin/riscv64-elf32-minix-gcc" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-c++" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-cpp" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-g++"
+file \
+  "$TOOLDIR/bin/riscv64-elf32-minix-gcc" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-c++" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-cpp" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-g++"
+```
+
+**QEMU validation / QEMU 验证**:
+```bash
+timeout 45 ./minix/scripts/qemu-riscv64.sh \
+  -k obj.intrgcc/minix/kernel/kernel \
+  -B obj.intrgcc/destdir.evbriscv64
+```
+
+**Observed result / 观察结果**:
+- `tools` completed with `MKGCC=yes` + `MKGCCCMDS=yes` (no fallback injection from `obj/` needed).
+- `riscv64-elf32-minix-{gcc,c++,cpp,g++}` were present as local ELF executables under
+  `obj.intrgcc/tooldir.*/bin`.
+- `distribution` completed successfully on the same `obj.intrgcc`.
+- QEMU boot output listed `Boot modules (12)` including `service/ds`, reached shell prompt (`#`),
+  and did not reproduce `Boot module not found: ds`.
+
+**Notes / 备注**:
+- The QEMU run was bounded by `timeout`; termination by SIGTERM at timeout boundary is expected
+  for log-capture runs and does not indicate runtime crash.

@@ -9,13 +9,13 @@ targeting the QEMU virt platform.
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.6
+- 版本：1.7
 - 最后更新：2026-02-16
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.6
+- Version: 1.7
 - Last updated: 2026-02-16
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
@@ -25,7 +25,7 @@ targeting the QEMU virt platform.
 **中文**
 - 构建：可通过（需使用 workaround 组合，见本文构建命令与 `RISC64-STATUS.md`）
 - 运行：QEMU 可稳定进入 shell，并通过 `echo SMOKE_OK`、`ps -aux`、`cat /proc/meminfo` 交互复测
-- `obj.intrgcc` 独立构建链路已跑通：`tools -> distribution -> QEMU`，不再出现 `Boot module not found: ds`
+- `obj.intrgcc` 独立构建链路已跑通：`tools(MKGCC=yes,MKGCCCMDS=yes) -> distribution -> QEMU`，不再出现 `Boot module not found: ds`
 - 关键风险：含盘 virtio 启动路径待复核、`procfs` safecopy 回退噪声、SMP 未实现、GCC-only 增量链路 ABI 参数兼容性（#25，详见 `issue.md`）
 - 进度估计：约 72%（启动链路与基础用户态已稳定，设备与工具链链路仍待完善）
 - 代码更新（至 2026-01-06 01:00 前）：用户态 gp 初始化（crt0 + gp.c）、exec/ucontext 与
@@ -36,7 +36,8 @@ targeting the QEMU virt platform.
 - Build: passes with workaround flags (see commands below and `RISC64-STATUS.md`)
 - Runtime: QEMU reaches a stable shell prompt and passes interactive retests:
   `echo SMOKE_OK`, `ps -aux`, and `cat /proc/meminfo`
-- The isolated `obj.intrgcc` chain is validated end-to-end (`tools -> distribution -> QEMU`);
+- The isolated `obj.intrgcc` chain is validated end-to-end
+  (`tools` with `MKGCC=yes` and `MKGCCCMDS=yes` -> `distribution` -> `QEMU`);
   `Boot module not found: ds` is no longer reproduced on this profile.
 - Key risks: with-disk virtio startup path recheck, procfs safecopy fallback noise,
   SMP not implemented, and GCC-only incremental ABI-flag compatibility (#25; see `issue.md`)
@@ -342,6 +343,58 @@ QEMU 验证命令 / QEMU validation command:
   Shell prompt is reachable and boot modules (`ds` included) load correctly; `Boot module not found: ds` is no longer observed.
 - 该链路可作为“完全自举可重建”（不依赖从 `obj/` 注入）的基线。  
   This chain is now a practical baseline for fully self-contained rebuilds without injecting artifacts from `obj/`.
+
+#### 5.6 2026-02-16 `obj.intrgcc` 完全自举收敛（内建 gcc 命令）/ 2026-02-16 `obj.intrgcc` Fully Self-Hosted Closure (in-tree gcc commands)
+
+构建命令 / Build commands:
+```bash
+# 1) tools with in-tree GCC frontends enabled
+MKPCI=no HOST_CFLAGS='-O -fcommon' HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+./build.sh -U -m evbriscv64 -O obj.intrgcc \
+  -V AVAILABLE_COMPILER=gcc -V ACTIVE_CC=gcc -V ACTIVE_CPP=gcc -V ACTIVE_CXX=gcc -V ACTIVE_OBJC=gcc \
+  -V MKGCC=yes -V MKGCCCMDS=yes \
+  tools
+
+# 2) distribution on the same objdir
+MKPCI=no HOST_CFLAGS='-O -fcommon' HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+./build.sh -U -u -j"$(nproc)" -m evbriscv64 -O obj.intrgcc \
+  -V AVAILABLE_COMPILER=gcc -V ACTIVE_CC=gcc -V ACTIVE_CPP=gcc -V ACTIVE_CXX=gcc -V ACTIVE_OBJC=gcc \
+  -V RISCV_ARCH_FLAGS='-march=RV64IMAFD -mcmodel=medany' \
+  -V NOGCCERROR=yes \
+  -V MKPIC=no -V MKPICLIB=no -V MKPICINSTALL=no \
+  -V MKCXX=no -V MKLIBSTDCXX=no -V MKATF=no \
+  -V USE_PCI=no \
+  -V CHECKFLIST_FLAGS='-m -e' \
+  distribution
+```
+
+工具链产物校验 / Toolchain artifact checks:
+```bash
+TOOLDIR=$(echo obj.intrgcc/tooldir.*-x86_64)
+ls -l \
+  "$TOOLDIR/bin/riscv64-elf32-minix-gcc" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-c++" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-cpp" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-g++"
+file \
+  "$TOOLDIR/bin/riscv64-elf32-minix-gcc" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-c++" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-cpp" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-g++"
+```
+
+QEMU 复测命令 / QEMU retest command:
+```bash
+timeout 45 ./minix/scripts/qemu-riscv64.sh \
+  -k obj.intrgcc/minix/kernel/kernel \
+  -B obj.intrgcc/destdir.evbriscv64
+```
+
+结果 / Result:
+- `riscv64-elf32-minix-{gcc,c++,cpp,g++}` 在 `obj.intrgcc/tooldir.*/bin` 内均为本地 ELF 可执行文件。  
+  `riscv64-elf32-minix-{gcc,c++,cpp,g++}` are local ELF executables under `obj.intrgcc/tooldir.*/bin`.
+- `distribution` 在同一 `obj.intrgcc` 完成，且 QEMU 可达 shell（`#`）；`Boot module not found: ds` 未复现。  
+  `distribution` completes on the same `obj.intrgcc`; QEMU reaches shell (`#`) and `Boot module not found: ds` is not reproduced.
 
 ## 已知问题与解决方案 / Known Issues and Workarounds
 
