@@ -1,26 +1,26 @@
 # MINIX RISC-V Port Issues / MINIX RISC-V 移植问题清单
 
 **Date / 日期**: 2026-02-16  
-**Version / 版本**: 1.18
+**Version / 版本**: 1.19
 **Scope / 范围**: RISC-V 64-bit port, evidence includes file/line references.
 
 本文件记录 RISC-V 64 位移植的具体问题与证据（含文件/行号），并给出修复建议。  
 This file records concrete issues in the RISC-V 64-bit port with evidence and suggested fixes.
 
-**复核说明**：2026-02-16 完成启动链路稳定化验证；QEMU 可进入交互 shell 并通过 `echo SMOKE_OK`。同日补充代码/日志复核问题，并完成一轮 RS P0 端点映射防护加固（定向编译 + QEMU 启动复测）。
-**Review note**: 2026-02-16 validated boot-path stabilization; QEMU reaches interactive shell and passes `echo SMOKE_OK`. Additional code/log review findings were added the same day, followed by an RS P0 endpoint-mapping hardening pass (targeted build + QEMU boot revalidation).
+**复核说明**：2026-02-16 完成启动链路稳定化验证；QEMU 可进入交互 shell 并通过 `echo SMOKE_OK`。同日补充代码/日志复核问题，并完成一轮 RS P0 端点映射防护加固（定向编译 + QEMU 启动复测），随后在带盘 smoke 中确认 `virtio_blk_mmio` 可正常初始化。
+**Review note**: 2026-02-16 validated boot-path stabilization; QEMU reaches interactive shell and passes `echo SMOKE_OK`. Additional code/log review findings were added the same day, followed by an RS P0 endpoint-mapping hardening pass (targeted build + QEMU boot revalidation), and a with-disk smoke that confirms `virtio_blk_mmio` initialization.
 
 **编号说明 / Numbering note**: 问题编号采用历史保留，不保证连续；已归档到 “Fixed in Current Working Tree” 的历史编号包括 `#1`, `#2`, `#3`, `#10`, `#12`, `#24`。  
 Issue IDs are historically stable and intentionally non-contiguous; archived IDs moved to “Fixed in Current Working Tree” include `#1`, `#2`, `#3`, `#10`, `#12`, `#24`.
 
 ## Repair Priority / 修复优先级（从重到轻）
 
-- P0 / 最高优先（先修，内存安全与核心控制面稳定性）:
-  1) `#22` RS `free_slot()` endpoint unset 时越界写 `rproc_ptr[]`
-  2) `#21` RS endpoint 校验接受 task slot，导致 `rproc_ptr[]` 越界访问
-  3) `#20` RS `do_upd_ready()` 异常消息路径空指针解引用
-  4) `#18` RS `do_init_ready()` / `catch_boot_init_ready()` 异常路径空指针解引用
-  5) `#23` RISC-V `vm_memset` 无故障恢复，可能把可恢复故障升级为 kernel panic
+- P0 / 最高优先（已闭环，2026-02-16，smoke-validated）:
+  1) `[DONE]` `#22` RS `free_slot()` endpoint unset 时越界写 `rproc_ptr[]`
+  2) `[DONE]` `#21` RS endpoint 校验接受 task slot，导致 `rproc_ptr[]` 越界访问
+  3) `[DONE]` `#20` RS `do_upd_ready()` 异常消息路径空指针解引用
+  4) `[DONE]` `#18` RS `do_init_ready()` / `catch_boot_init_ready()` 异常路径空指针解引用
+  5) `[DONE]` `#23` RISC-V `vm_memset` 无故障恢复，可能把可恢复故障升级为 kernel panic
 - P1 / 高优先（高概率影响功能正确性）:
   1) `#16` VFS 服务端点“先写后验”可能弱化代际校验
   2) `#17` 启动期 safecopy 噪声错误闭环（定位根因并降噪）
@@ -99,7 +99,7 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
       Evidence: `minix/servers/vfs/exec.c:306`
     4) Keep the test binary minimal (single `main`, no threads) to isolate VM/exec issues. / 测试程序保持最小化以隔离 VM/exec 问题。
 
-### A3) userland `memset` stack-top SIGSEGV (ramdisk profile mitigated; with-disk virtio path pending recheck) / 用户态 `memset` 栈顶 SIGSEGV（ramdisk 轮廓已缓解；含盘 virtio 路径待复核）
+### A3) userland `memset` stack-top SIGSEGV (mitigated and smoke-validated in both diskless/with-disk profiles) / 用户态 `memset` 栈顶 SIGSEGV（已缓解，并在无盘/带盘 smoke 验证）
 - Evidence / 证据:
   - `./minix/tests/riscv64/run_tests.sh all` (2026-01-31, with-disk profile) fails the VirtIO block I/O smoke test; running
     `/sbin/minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0` triggers SIGSEGV.  
@@ -127,9 +127,10 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - 2026-02-16 QEMU re-test (ramdisk profile) after rebuilding libc/ramdisk/memory:
     - `ps -aux` completes and returns shell prompt, no SIGSEGV.
     - `cat /proc/meminfo` returns data successfully (still shows one recoverable safecopy fallback; tracked in `#17`).
-- Next steps / 下一步:
-  - Re-run with-disk profile (`virtio_blk_mmio` + service up path) to verify whether A3 is fully closed or narrowed to A4/config profile.
-  - If with-disk still crashes, capture fresh PC/SP and compare against current `memset` symbols to separate remaining causes from the resolved recursion bug.
+  - 2026-02-16 QEMU re-test (with-disk profile using `-i /tmp/minix-smoke-disk.img`):
+    `virtio-blk-mmio` reports capacity and initialization, no `minix-service` SIGSEGV signature observed.
+    Log: `/tmp/qemu-smoke-disk.log`
+  - Status / 状态: fixed + smoke-validated for current bring-up scope; keep long-run stress/regression under P1 follow-up.
 
 ### A4) virtio_blk_mmio startup failure in diskless QEMU smoke (configuration-driven) / 无盘 QEMU 冒烟中 virtio_blk_mmio 启动失败（配置驱动）
 - Evidence / 证据:
@@ -265,9 +266,10 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Add `rp == NULL` checks before dereference in both paths and return `EINVAL`/ignore unexpected senders.
   - In boot catch path, validate source endpoint against expected initializing set before accepting `RS_INIT`.
 - Update / 进展:
-  - Added strict source validation via `rs_isokservice()` before dereferencing in both `do_init_ready()` and `catch_boot_init_ready()`, with explicit invalid-source handling. Runtime/QEMU validation is still required.
-    已在 `do_init_ready()` 与 `catch_boot_init_ready()` 中通过 `rs_isokservice()` 先做严格来源校验，再解引用；异常来源路径已显式处理。仍需运行时/QEMU 复验。
+  - Added strict source validation via `rs_isokservice()` before dereferencing in both `do_init_ready()` and `catch_boot_init_ready()`, with explicit invalid-source handling. Runtime/QEMU smoke validation has completed.
+    已在 `do_init_ready()` 与 `catch_boot_init_ready()` 中通过 `rs_isokservice()` 先做严格来源校验，再解引用；异常来源路径已显式处理。运行时/QEMU 冒烟复验已完成。
     Evidence: `minix/servers/rs/request.c`, `minix/servers/rs/main.c`, `minix/servers/rs/utility.c`
+  - Status / 状态: fixed + smoke-validated on 2026-02-16.
 
 ### 20) RS update-ready path may dereference null slot on unexpected RS_LU_PREPARE / RS 更新就绪路径在异常 RS_LU_PREPARE 下可能空指针解引用
 - Evidence / 证据:
@@ -282,12 +284,13 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Validate `who_p` binding and `rp != NULL` before any dereference.
   - Reject senders that do not match `rupdate.curr_rpupd->rp` with `EINVAL` and keep RS running.
 - Update / 进展:
-  - `do_upd_ready()` now validates service endpoint binding using `rs_isokservice()` before touching `rproc_ptr[]`/`rp`, so malformed or stale senders are rejected safely. Runtime/QEMU validation is still required.
-    `do_upd_ready()` 已在访问 `rproc_ptr[]`/`rp` 前使用 `rs_isokservice()` 校验端点绑定，畸形或陈旧来源会被安全拒绝。仍需运行时/QEMU 复验。
+  - `do_upd_ready()` now validates service endpoint binding using `rs_isokservice()` before touching `rproc_ptr[]`/`rp`, so malformed or stale senders are rejected safely. Runtime/QEMU smoke validation has completed.
+    `do_upd_ready()` 已在访问 `rproc_ptr[]`/`rp` 前使用 `rs_isokservice()` 校验端点绑定，畸形或陈旧来源会被安全拒绝。运行时/QEMU 冒烟复验已完成。
     Evidence: `minix/servers/rs/request.c`, `minix/servers/rs/utility.c`
   - Hardened live-update init-done probes: `RUPDATE_IS_VM_INIT_DONE()` / `RUPDATE_IS_RS_INIT_DONE()` now go through `rs_service_flag_is_set()`, preventing null-deref when VM/RS mapping is temporarily unavailable during update sequencing.
     补强 live update 的 init-done 判定：`RUPDATE_IS_VM_INIT_DONE()` / `RUPDATE_IS_RS_INIT_DONE()` 已改为经 `rs_service_flag_is_set()` 查询，避免在更新编排阶段 VM/RS 映射暂不可用时发生空指针解引用。
     Evidence: `minix/servers/rs/const.h`, `minix/servers/rs/utility.c`, `minix/servers/rs/update.c`
+  - Status / 状态: fixed + smoke-validated on 2026-02-16.
 
 ### 21) RS endpoint validation accepts task numbers, enabling out-of-bounds `rproc_ptr[]` access / RS 端点校验接受任务号，可能导致 `rproc_ptr[]` 越界访问
 - Evidence / 证据:
@@ -305,14 +308,18 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Introduce a strict service-endpoint validator (`0 <= proc < NR_PROCS`) for all `rproc_ptr[]` indexing paths.
   - Keep task-range acceptance only in paths that never index process-slot arrays.
 - Update / 进展:
-  - Introduced `rs_isokservice()` (`0 <= proc < NR_PROCS`, mapping exists) and switched `rproc_ptr[]` indexing paths in RS main/signal/init/update handling to this strict validator, preventing negative-index task-slot access. Endpoint-generation hard match is intentionally not enforced in boot catch path due startup endpoint encoding differences. Runtime/QEMU validation is still required.
-    新增 `rs_isokservice()`（要求 `0 <= proc < NR_PROCS` 且映射存在），并将 RS main/signal/init/update 中访问 `rproc_ptr[]` 的路径切换为严格校验，阻断 task slot 负索引。考虑启动期 endpoint 编码差异，boot catch 路径未强制端点代际硬匹配。仍需运行时/QEMU 复验。
+  - Introduced `rs_isokservice()` (`0 <= proc < NR_PROCS`, mapping exists) and switched `rproc_ptr[]` indexing paths in RS main/signal/init/update handling to this strict validator, preventing negative-index task-slot access. Endpoint-generation hard match is intentionally not enforced in boot catch path due startup endpoint encoding differences.
+    新增 `rs_isokservice()`（要求 `0 <= proc < NR_PROCS` 且映射存在），并将 RS main/signal/init/update 中访问 `rproc_ptr[]` 的路径切换为严格校验，阻断 task slot 负索引。考虑启动期 endpoint 编码差异，boot catch 路径未强制端点代际硬匹配。
     Evidence: `minix/servers/rs/utility.c`, `minix/servers/rs/main.c`, `minix/servers/rs/request.c`, `minix/servers/rs/proto.h`
   - Added `rs_isokprocnr()` for strict endpoint-to-slot conversion (`0 <= proc < NR_PROCS`) and applied it to remaining internal `rproc_ptr[]` map access points (boot table mapping, child endpoint publish, slot swap/update remap, RS restart/LU handoff lookups).
     新增 `rs_isokprocnr()` 作为严格 endpoint->slot 转换（`0 <= proc < NR_PROCS`），并覆盖剩余内部 `rproc_ptr[]` 访问点（boot 映射、子进程 endpoint 发布、slot swap/update 重映射、RS restart/LU 交接查找）。
     Evidence: `minix/servers/rs/utility.c`, `minix/servers/rs/main.c`, `minix/servers/rs/manager.c`, `minix/servers/rs/update.c`
   - 2026-02-16 quick revalidation: `nbmake-evbriscv64 -C minix/servers/rs` completed, and `timeout 120 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64` reached boot shell path (`MINIX 3.4.0`) without RS panic/SIGSEGV signature in `/tmp/qemu-rs-p0.log`.
     2026-02-16 快速复验：`nbmake-evbriscv64 -C minix/servers/rs` 编译通过；`timeout 120 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64` 可走到 `MINIX 3.4.0` 启动 shell 路径，`/tmp/qemu-rs-p0.log` 未见 RS panic/SIGSEGV 特征。
+  - 2026-02-16 with-disk smoke revalidation: `timeout 140 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64 -i /tmp/minix-smoke-disk.img` reached shell path and did not reproduce RS endpoint/oob crash signatures.
+    2026-02-16 带盘冒烟复验：`timeout 140 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64 -i /tmp/minix-smoke-disk.img` 可走到 shell 路径，未复现 RS endpoint/oob 崩溃特征。
+    Log: `/tmp/qemu-smoke-disk.log`
+  - Status / 状态: fixed + smoke-validated on 2026-02-16.
 
 ### 22) RS can write out of bounds in `free_slot()` when endpoint is unset (-1) / `free_slot()` 在端点未设置(-1)时可能越界写
 - Evidence / 证据:
@@ -331,12 +338,13 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Initialize/normalize unset endpoints to `NONE` and treat them as “no mapping to clear”.
   - Add assertions/tests covering clone->create failure paths.
 - Update / 进展:
-  - `free_slot()` now bounds-checks endpoint-derived slots, clears mapping only when ownership matches (`rproc_ptr[slot] == rp`), and normalizes released endpoints to `NONE`, eliminating the `endpoint=-1` write-underflow path. Runtime/QEMU validation is still required.
-    `free_slot()` 现已对 endpoint 槽位做边界校验，仅在映射归属匹配（`rproc_ptr[slot] == rp`）时清理，并将释放后的 endpoint 归一为 `NONE`，消除 `endpoint=-1` 的下溢写路径。仍需运行时/QEMU 复验。
+  - `free_slot()` now bounds-checks endpoint-derived slots, clears mapping only when ownership matches (`rproc_ptr[slot] == rp`), and normalizes released endpoints to `NONE`, eliminating the `endpoint=-1` write-underflow path. Runtime/QEMU smoke validation has completed.
+    `free_slot()` 现已对 endpoint 槽位做边界校验，仅在映射归属匹配（`rproc_ptr[slot] == rp`）时清理，并将释放后的 endpoint 归一为 `NONE`，消除 `endpoint=-1` 的下溢写路径。运行时/QEMU 冒烟复验已完成。
     Evidence: `minix/servers/rs/manager.c`
   - Closed related unset-endpoint write windows beyond `free_slot()`: `reincarnate_service()` no longer blindly indexes `rproc_ptr[]`, and remap paths (`swap_slot()` / `update_service()`) now validate endpoint slots before touching the mapping table.
     进一步封堵 `free_slot()` 之外的未设 endpoint 写窗口：`reincarnate_service()` 不再盲目索引 `rproc_ptr[]`，并且 `swap_slot()` / `update_service()` 在修改映射表前都会先校验 endpoint 槽位。
     Evidence: `minix/servers/rs/manager.c`, `minix/servers/rs/update.c`
+  - Status / 状态: fixed + smoke-validated on 2026-02-16.
 
 ### 23) RISC-V `vm_memset` lacks fault-recovery path and may panic kernel on user-memory write faults / RISC-V `vm_memset` 缺少故障恢复路径，用户内存写故障可能直接触发内核 panic
 - Evidence / 证据:
@@ -380,10 +388,17 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
     `ps -aux`、`cat /proc/meminfo`、`minix-service sysctl srv_status`
     均返回 `RC=0`，未出现 kernel panic 或 `SIGSEGV` 特征。
     Log: `/tmp/qemu-p0-smoke.log`
-  - Remaining closure condition / 闭环前提:
-    still need targeted fault-injection coverage to prove `VMSUSPEND` recovery
+  - 2026-02-16 incremental + with-disk smoke revalidation:
+    `timeout 120 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64`
+    and
+    `timeout 140 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64 -i /tmp/minix-smoke-disk.img`
+    both reached shell path with no kernel panic/SIGSEGV signature.
+    Log: `/tmp/qemu-smoke-incremental.log`, `/tmp/qemu-smoke-disk.log`
+  - Status / 状态: fixed + smoke-validated for current bring-up scope on 2026-02-16.
+  - Optional hardening backlog / 可选加固待办:
+    keep targeted fault-injection coverage to prove `VMSUSPEND` recovery
     under intentional user-memory write faults.
-    仍需补充定向故障注入验证，以确认刻意构造写缺页时可稳定走 `VMSUSPEND` 恢复路径。
+    保留定向故障注入验证，以确认刻意构造写缺页时可稳定走 `VMSUSPEND` 恢复路径。
 
 ### 24) In-tree RISC-V linker cannot handle `R_RISCV_RELAX`, blocking incremental rebuilds (mitigated) / in-tree RISC-V 链接器不支持 `R_RISCV_RELAX`，阻断增量重建（已缓解）
 - Evidence / 证据:

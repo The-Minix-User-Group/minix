@@ -1,7 +1,7 @@
 # RISC-V MINIX Kernel Build Log / RISC-V MINIX 内核构建日志
 
-**Last updated / 最后更新**: 2026-02-16  
-**Version / 版本**: 1.6  
+**Last updated / 最后更新**: 2026-02-16
+**Version / 版本**: 1.7
 **Purpose / 用途**: Append-only record of build commands and outcomes. / 记录构建命令与结果（追加式）。
 
 ## Log Entries / 日志条目
@@ -89,8 +89,8 @@ MAKEOBJDIRPREFIX=/root/minix/obj \
 - Kernel build succeeded with GCC toolchain + `MAKEOBJDIRPREFIX` setup.
 
 ### Entry 8 — RV64 memset Fix + Ramdisk/Memory Rebuild + QEMU Smoke (2026-02-16) / 修复 memset + 重建 ramdisk/memory + QEMU 冒烟
-**Workspace / 工作区**: `/home/donz/minix`  
-**Target / 目标**: `evbriscv64`  
+**Workspace / 工作区**: `/home/donz/minix`
+**Target / 目标**: `evbriscv64`
 **Toolchain / 工具链**: `obj/tooldir.Linux-6.12.63+deb13-amd64-x86_64`
 
 **Context / 背景**:
@@ -149,8 +149,8 @@ cat /proc/meminfo
   (`ld: unrecognized relocation (0x33)`), tracked as `issue.md` #24.
 
 ### Entry 9 — #24 `R_RISCV_RELAX` Compatibility Mitigation (2026-02-16) / #24 `R_RISCV_RELAX` 兼容性缓解
-**Workspace / 工作区**: `/home/donz/minix`  
-**Target / 目标**: `evbriscv64`  
+**Workspace / 工作区**: `/home/donz/minix`
+**Target / 目标**: `evbriscv64`
 **Toolchain / 工具链**: `obj/tooldir.Linux-6.12.63+deb13-amd64-x86_64`
 
 **Code change / 代码改动**:
@@ -339,3 +339,57 @@ timeout 45 ./minix/scripts/qemu-riscv64.sh \
 **Notes / 备注**:
 - The QEMU run was bounded by `timeout`; termination by SIGTERM at timeout boundary is expected
   for log-capture runs and does not indicate runtime crash.
+
+### Entry 13 — RS P0 Incremental Convergence + Diskless/With-Disk Smoke (2026-02-16) / RS P0 增量收敛 + 无盘/带盘冒烟
+**Workspace / 工作区**: `/home/donz/minix`
+**Target / 目标**: `evbriscv64`
+**Objdir / 对象目录**: `obj.intrgcc`
+
+**Goal / 目标**:
+- Run a small convergence cycle after RS P0 hardening:
+  incremental rebuild/install, baseline boot smoke, with-disk boot smoke,
+  and first-error check.
+- Confirm that with-disk startup no longer emits the previous `virtio_blk_mmio`
+  startup-failure signature.
+
+**Incremental build/install / 增量构建与安装**:
+```bash
+obj.intrgcc/tooldir.Linux-6.12.63+deb13-amd64-x86_64/bin/nbmake-evbriscv64 \
+  -C minix/servers/rs
+obj.intrgcc/tooldir.Linux-6.12.63+deb13-amd64-x86_64/bin/nbmake-evbriscv64 \
+  -C minix/servers/rs install
+```
+
+**Smoke commands / 冒烟命令**:
+```bash
+# diskless baseline smoke
+timeout 120 ./minix/scripts/qemu-riscv64.sh -s \
+  -k obj.intrgcc/minix/kernel/kernel \
+  -B obj.intrgcc/destdir.evbriscv64 \
+  > /tmp/qemu-smoke-incremental.log 2>&1 || true
+
+# with-disk smoke
+truncate -s 128M /tmp/minix-smoke-disk.img
+timeout 140 ./minix/scripts/qemu-riscv64.sh -s \
+  -k obj.intrgcc/minix/kernel/kernel \
+  -B obj.intrgcc/destdir.evbriscv64 \
+  -i /tmp/minix-smoke-disk.img \
+  > /tmp/qemu-smoke-disk.log 2>&1 || true
+```
+
+**Observed result / 观察结果**:
+- Incremental RS rebuild/install completed successfully.
+- Diskless and with-disk smoke both reached shell path (`MINIX 3.4.0`, `/bin/sh`),
+  and no kernel panic / `SIGSEGV` signature was observed.
+- With-disk smoke shows:
+  `virtio-blk-mmio: capacity: 262144 sectors` and `virtio-blk-mmio: initialized`,
+  while the old warning pattern is absent:
+  `virtio-blk-mmio: device not found`,
+  `Request 0x700 to RS failed`,
+  `WARNING: couldn't start virtio_blk_mmio`.
+- First non-fatal error in both logs is still recoverable safecopy fallback noise
+  (`kcall safecopy err`, `do_safecopy_*`), tracked as `issue.md` #17.
+
+**Evidence / 证据**:
+- `/tmp/qemu-smoke-incremental.log`
+- `/tmp/qemu-smoke-disk.log`

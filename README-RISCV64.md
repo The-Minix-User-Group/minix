@@ -9,13 +9,13 @@ targeting the QEMU virt platform.
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.7
+- 版本：1.8
 - 最后更新：2026-02-16
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.7
+- Version: 1.8
 - Last updated: 2026-02-16
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
@@ -26,8 +26,9 @@ targeting the QEMU virt platform.
 - 构建：可通过（需使用 workaround 组合，见本文构建命令与 `RISC64-STATUS.md`）
 - 运行：QEMU 可稳定进入 shell，并通过 `echo SMOKE_OK`、`ps -aux`、`cat /proc/meminfo` 交互复测
 - `obj.intrgcc` 独立构建链路已跑通：`tools(MKGCC=yes,MKGCCCMDS=yes) -> distribution -> QEMU`，不再出现 `Boot module not found: ds`
-- 关键风险：含盘 virtio 启动路径待复核、`procfs` safecopy 回退噪声、SMP 未实现、GCC-only 增量链路 ABI 参数兼容性（#25，详见 `issue.md`）
-- 进度估计：约 72%（启动链路与基础用户态已稳定，设备与工具链链路仍待完善）
+- 含盘 smoke 已复测：`virtio_blk_mmio` 在 `-i <disk image>` 轮廓下可正常初始化。
+- 关键风险：`procfs` safecopy 回退噪声、SMP 未实现、GCC-only 增量链路 ABI 参数兼容性（#25，详见 `issue.md`）
+- 进度估计：约 76%（启动链路与基础用户态已稳定，主要剩余问题集中在噪声收敛与工具链细节）
 - 代码更新（至 2026-01-06 01:00 前）：用户态 gp 初始化（crt0 + gp.c）、exec/ucontext 与
   VM 执行权限标记、IPC/缺页 ABI 修复（64 位地址、senda 参数顺序）。
 - 文档更新：2026-02-16 追加 `memset` 递归修复后的 ramdisk 复测结果，`ps -aux` 不再复现 SIGSEGV。
@@ -39,9 +40,11 @@ targeting the QEMU virt platform.
 - The isolated `obj.intrgcc` chain is validated end-to-end
   (`tools` with `MKGCC=yes` and `MKGCCCMDS=yes` -> `distribution` -> `QEMU`);
   `Boot module not found: ds` is no longer reproduced on this profile.
-- Key risks: with-disk virtio startup path recheck, procfs safecopy fallback noise,
-  SMP not implemented, and GCC-only incremental ABI-flag compatibility (#25; see `issue.md`)
-- Progress estimate: ~72% (boot + basic userland path stabilized; device/toolchain work remains)
+- With-disk smoke has been revalidated: `virtio_blk_mmio` initializes in `-i <disk image>` profile.
+- Key risks: procfs safecopy fallback noise, SMP not implemented, and GCC-only
+  incremental ABI-flag compatibility (#25; see `issue.md`)
+- Progress estimate: ~76% (boot + basic userland path stabilized; remaining work is mostly
+  noise/toolchain convergence)
 - Code updates (through 2026-01-06 01:00): userland gp init (crt0 + gp.c),
   exec/ucontext + VM exec flags, IPC/pagefault ABI fixes (64-bit addr, senda arg order).
 - Doc refresh: 2026-02-16 update adds post-`memset`-fix ramdisk retest; `ps` stack-top SIGSEGV
@@ -225,14 +228,18 @@ MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
 - 内核启动：通过，日志可见 `MINIX` banner、`VFS: init_root done`、`init: exec /bin/sh /etc/rc`。
 - 交互冒烟：通过，在 QEMU shell 中执行 `echo SMOKE_OK` 返回 `SMOKE_OK`。
 - 增量复测：通过，`ps -aux` 返回进程列表且不再 SIGSEGV；`cat /proc/meminfo` 可正常输出。
-- 已知未完成：含盘 virtio 启动链路仍需单独复核；SMP 仍为 skip（not yet implemented）。
+- 含盘复测：通过，`-i <disk image>` 轮廓下 `virtio_blk_mmio` 报告 capacity/initialized。
+- 已知未完成：SMP 仍为 skip（not yet implemented）；`procfs` safecopy 噪声与 GCC-only ABI 参数兼容仍待收敛。
 
 **English (as of 2026-02-16)**
 - Userland compile tests: pass (in-tree toolchain + sysroot, `-std=gnu99`).
 - Kernel boot: pass; logs show `MINIX` banner, `VFS: init_root done`, and `init: exec /bin/sh /etc/rc`.
 - Interactive smoke: pass; running `echo SMOKE_OK` in QEMU shell returns `SMOKE_OK`.
 - Incremental retest: pass; `ps -aux` no longer crashes and `cat /proc/meminfo` returns expected output.
-- Remaining gaps: with-disk virtio startup still needs focused recheck; SMP remains skipped (not yet implemented).
+- With-disk retest: pass; in `-i <disk image>` profile, `virtio_blk_mmio` reports
+  capacity/initialized.
+- Remaining gaps: SMP remains skipped (not yet implemented); procfs safecopy noise and
+  GCC-only ABI-flag compatibility still need convergence.
 
 #### 5.1 启动稳定化验证记录 / Boot Stabilization Validation
 
@@ -425,12 +432,12 @@ timeout 45 ./minix/scripts/qemu-riscv64.sh \
    **SBI legacy IPI/fence passes VA**  
    - Status: PA-side fix is in tree; verify in SMP-related runtime tests.
 
-5. **virtio 启动路径仍需含盘复核（A3）**  
-   - 现状：ramdisk 轮廓下 `memset` 栈顶 SIGSEGV 已缓解；含盘 virtio 链路需单独复测。  
-   - 建议：使用 `-i <disk image>` 轮廓复跑 `minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0`。  
-   **Virtio startup path still needs with-disk recheck (A3)**  
-   - Status: stack-top SIGSEGV signature is mitigated in ramdisk profile; with-disk path still needs focused retest.
-   - Action: re-run `minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0` under `-i <disk image>` profile.
+5. **virtio 启动路径含盘复测已通过（A3）**
+   - 现状：`-i <disk image>` 轮廓下 `virtio_blk_mmio` 已可初始化（capacity/initialized），未复现 `device not found`/`couldn't start`。
+   - 建议：将含盘启动检查纳入常规 smoke，持续防回归。
+   **Virtio startup path with-disk retest passed (A3)**
+   - Status: in `-i <disk image>` profile, `virtio_blk_mmio` initializes successfully and no longer reproduces `device not found`/`couldn't start`.
+   - Action: keep the with-disk startup check in regular smoke runs to prevent regressions.
 
 6. **in-tree linker `R_RISCV_RELAX` 兼容性（#24，已缓解）**  
    - 现状：已加入 `external/gpl3/binutils/patches/0011-riscv-relax-compat.patch`，

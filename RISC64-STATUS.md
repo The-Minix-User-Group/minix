@@ -1,9 +1,9 @@
 # MINIX RISC-V 64-bit Port Status / MINIX RISC-V 64 位移植状态
 
 **Date / 日期**: 2026-02-16  
-**Version / 版本**: 1.5  
-**Status / 状态**: Phase 2 stabilization — boots to shell; core smoke mostly passes  
-**Progress / 进度**: ~72% (boot/userland path stabilized; with-disk/driver/toolchain gaps remain)
+**Version / 版本**: 1.6
+**Status / 状态**: Phase 2 stabilization — boots to shell; P0 closed and smoke-validated
+**Progress / 进度**: ~76% (boot/userland path stabilized; diskless/with-disk smoke validated, core follow-ups remain)
 
 ## Summary / 摘要
 
@@ -15,9 +15,10 @@
 - 已验证 `obj.intrgcc` 独立链路可完成 `tools -> distribution -> QEMU`，并消除此前
   `Boot module not found: ds` 的启动报错。
 - 本轮已确认并修复 RV64 用户态 `memset` 递归导致的栈顶 SIGSEGV（见 `issue.md` A3 进展）。
+- 含盘 smoke 复测通过：`virtio_blk_mmio` 报告 capacity/initialized，未再出现
+  `device not found` / `Request 0x700 to RS failed` / `couldn't start virtio_blk_mmio`。
 - #24 已缓解：in-tree binutils 增加 `R_RISCV_RELAX` 兼容补丁，`ld` 不再因 `0x33` 中断链接。
-- 仍有待闭环风险：含盘 virtio 启动链路复核、`procfs` safecopy 回退噪声（#17）、
-  GCC-only 增量构建 ABI 参数兼容性（#25）。
+- 仍有待闭环风险：`procfs` safecopy 回退噪声（#17）、GCC-only 增量构建 ABI 参数兼容性（#25）。
 
 **English**
 - Build passes with GCC + workaround flags; see `README-RISCV64.md` for exact commands.
@@ -30,10 +31,12 @@
   the previous `Boot module not found: ds` startup failure is no longer reproduced.
 - This cycle confirms and mitigates the RV64 userland `memset` recursion SIGSEGV signature
   (see `issue.md` A3 update).
+- With-disk smoke now passes: `virtio_blk_mmio` reports capacity/initialized and no longer logs
+  `device not found`, `Request 0x700 to RS failed`, or `couldn't start virtio_blk_mmio`.
 - #24 is now mitigated: in-tree binutils has a compatibility patch for `R_RISCV_RELAX`,
   and `ld` no longer aborts on relocation `0x33`.
-- Remaining open risks: with-disk virtio startup recheck, procfs safecopy retry noise (#17),
-  and GCC-only incremental ABI-flag compatibility (#25).
+- Remaining open risks: procfs safecopy retry noise (#17) and GCC-only incremental
+  ABI-flag compatibility (#25).
 
 ## Build Status / 构建状态
 
@@ -68,7 +71,8 @@
 - `/proc/meminfo` 路径仍可见一次可恢复 safecopy 回退（先失败后重试成功），属于已知噪声问题（#17）。
 - 新一轮 `qemu-p0-smoke`（`/tmp/qemu-p0-smoke.log`）同样显示 procfs/safecopy 可恢复回退噪声，
   但命令返回保持成功（`RC=0`）。
-- 含盘 virtio 启动链路仍需单独复测后才能确认 A3 全量闭环。
+- 含盘 smoke（`/tmp/qemu-smoke-disk.log`）已验证 `virtio_blk_mmio` 初始化成功；
+  `-i` 轮廓下未复现 `device not found` / `Request 0x700 ... not alive` 告警。
 
 **English**
 - Boot path is stable to the `#` shell prompt; init and core services complete basic startup handshake.
@@ -79,7 +83,8 @@
   tracked as known noise in #17.
 - The latest `qemu-p0-smoke` run (`/tmp/qemu-p0-smoke.log`) shows the same recoverable
   procfs/safecopy fallback noise while command return codes remain successful (`RC=0`).
-- With-disk virtio startup path still needs dedicated revalidation to close A3 end-to-end.
+- The with-disk smoke run (`/tmp/qemu-smoke-disk.log`) confirms `virtio_blk_mmio`
+  initialization and does not reproduce the previous startup warning signature.
 
 ## Key Issues (Snapshot) / 关键问题（摘要）
 
@@ -87,7 +92,6 @@
 - None newly confirmed in current workspace.
 
 **Major / 重要**
-- A3: with-disk virtio startup path still needs revalidation after `memset` fix.
 - #17: recoverable safecopy fallback noise on `/proc/*` path remains.
 - #25: GCC-only incremental build path may fail on unsupported `-mabi=lp64d`.
 - #23: RV64 `vm_memset` recovery plumbing is implemented and smoke-validated; targeted
@@ -104,29 +108,30 @@
 ## Next Priorities / 下一阶段优先级
 
 **中文**
-1) 跑含盘 QEMU 轮廓，验证 `minix-service` + `virtio_blk_mmio` 路径是否已闭环。
+1) 继续收敛 #17（统计/限流 + 负载下验证），区分噪声与真实功能缺陷。
 2) 在 clean 环境做一次从 `fetch.sh` 到 `tools/binutils` 的复验，确认 #24 补丁可重复生效。
 3) 修复 #25：统一 GCC 路径的 `-mabi` 参数能力探测与回退策略。
-4) 继续收敛 #17（统计/限流 + 负载下验证），区分噪声与真实功能缺陷。
-5) 在稳定后恢复动态装载链路（`MKPIC/MKPICLIB`）并验证最小动态程序。
+4) 在稳定后恢复动态装载链路（`MKPIC/MKPICLIB`）并验证最小动态程序。
+5) 增加带盘回归轮次（含 `virtio_blk_mmio` 启动检查）作为常规 smoke 条目。
 
 **English**
-1) Run with-disk QEMU profile and revalidate `minix-service` + `virtio_blk_mmio` path.
+1) Continue closing #17 with counters/rate-limit + stress validation.
 2) Re-run from clean `fetch.sh` to `tools/binutils` and confirm #24 patch reproducibility.
 3) Fix #25 by normalizing GCC `-mabi` probing/fallback in incremental paths.
-4) Continue closing #17 with counters/rate-limit + stress validation.
-5) Restore dynamic loader path (`MKPIC/MKPICLIB`) and test a minimal dynamic binary.
+4) Restore dynamic loader path (`MKPIC/MKPICLIB`) and test a minimal dynamic binary.
+5) Keep with-disk regression runs (including `virtio_blk_mmio` startup checks) as regular smoke.
 
 ## Success Criteria / 下一里程碑判定
 
 **中文**
-- 无盘与含盘两种 QEMU 轮廓均可稳定进入 shell 且不出现 `minix-service` SIGSEGV。
+- 无盘与含盘两种 QEMU 轮廓在连续回归中稳定进入 shell，且含盘场景保持 `virtio_blk_mmio` 初始化成功。
 - `ps -aux`、`cat /proc/meminfo` 在连续回归中稳定通过。
 - 增量重建可在不替换链接器的前提下完成（不再出现 `R_RISCV_RELAX` 链接错误）。
 - `procfs` 路径 safecopy 错误噪声降到可接受水平并有计数证据。
 
 **English**
-- Both diskless and with-disk QEMU profiles reach shell without `minix-service` SIGSEGV.
+- Diskless and with-disk QEMU profiles keep reaching shell across regressions, with
+  `virtio_blk_mmio` initialization preserved in with-disk runs.
 - `ps -aux` and `cat /proc/meminfo` pass consistently across regressions.
 - Incremental rebuild works without ad-hoc linker substitution (`R_RISCV_RELAX` link failures gone),
   and GCC-only path no longer fails on unsupported ABI flags.
