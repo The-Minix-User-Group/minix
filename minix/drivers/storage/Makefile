@@ -12,6 +12,10 @@ SUBDIR+=	virtio_blk
 SUBDIR+=	mmc
 .  endif # ${MACHINE_ARCH} == "earm"
 
+.  if ${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv"
+SUBDIR+=	virtio_blk_mmio
+.  endif # ${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv"
+
 SUBDIR+=	vnd
 .endif # ${MKIMAGEONLY} == "no"
 

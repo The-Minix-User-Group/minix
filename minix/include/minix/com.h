@@ -370,7 +370,7 @@
 #define SVMCTL_WHO	m1_i1
 #define SVMCTL_PARAM	m1_i2	/* All SYS_VMCTL requests. */
 #if defined(__riscv64__)
-#define SVMCTL_VALUE	m1ull1
+#define SVMCTL_VALUE	m1_ull1
 #else
 #define SVMCTL_VALUE	m1_i3
 #endif
