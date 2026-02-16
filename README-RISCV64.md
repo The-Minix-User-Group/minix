@@ -9,13 +9,13 @@ targeting the QEMU virt platform.
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.4
+- 版本：1.5
 - 最后更新：2026-02-16
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.4
+- Version: 1.5
 - Last updated: 2026-02-16
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
@@ -24,23 +24,24 @@ targeting the QEMU virt platform.
 
 **中文**
 - 构建：可通过（需使用 workaround 组合，见本文构建命令与 `RISC64-STATUS.md`）
-- 运行：QEMU 可稳定进入 shell 并完成交互冒烟（`echo SMOKE_OK`）
-- 关键风险：virtio 启动路径的 `minix-service` SIGSEGV、SMP 未实现、部分 VM/IO 修复项待持续回归验证（详见 `issue.md`）
-- 进度估计：约 70%（启动链路已稳定，设备与 SMP 链路仍待完善）
+- 运行：QEMU 可稳定进入 shell，并通过 `echo SMOKE_OK`、`ps -aux`、`cat /proc/meminfo` 交互复测
+- 关键风险：含盘 virtio 启动路径待复核、`procfs` safecopy 回退噪声、SMP 未实现、in-tree linker `R_RISCV_RELAX` 兼容性（详见 `issue.md`）
+- 进度估计：约 72%（启动链路与基础用户态已稳定，设备与工具链链路仍待完善）
 - 代码更新（至 2026-01-06 01:00 前）：用户态 gp 初始化（crt0 + gp.c）、exec/ucontext 与
   VM 执行权限标记、IPC/缺页 ABI 修复（64 位地址、senda 参数顺序）。
-- 文档更新：2026-02-16 追加启动稳定化结果；修复 PFS/MFS/RS 启动握手与 ilp32 用户地址上限后，未再复现 shell 前 SIGSEGV。
+- 文档更新：2026-02-16 追加 `memset` 递归修复后的 ramdisk 复测结果，`ps -aux` 不再复现 SIGSEGV。
 
 **English**
 - Build: passes with workaround flags (see commands below and `RISC64-STATUS.md`)
-- Runtime: QEMU now reaches a stable shell prompt and passes an interactive smoke (`echo SMOKE_OK`)
-- Key risks: `minix-service` SIGSEGV in virtio startup path, SMP not implemented, and
-  continued runtime validation for VM/IO fixes (see `issue.md`)
-- Progress estimate: ~70% (boot path stabilized; device/SMP work remains)
+- Runtime: QEMU reaches a stable shell prompt and passes interactive retests:
+  `echo SMOKE_OK`, `ps -aux`, and `cat /proc/meminfo`
+- Key risks: with-disk virtio startup path recheck, procfs safecopy fallback noise,
+  SMP not implemented, and in-tree linker `R_RISCV_RELAX` compatibility (see `issue.md`)
+- Progress estimate: ~72% (boot + basic userland path stabilized; device/toolchain work remains)
 - Code updates (through 2026-01-06 01:00): userland gp init (crt0 + gp.c),
   exec/ucontext + VM exec flags, IPC/pagefault ABI fixes (64-bit addr, senda arg order).
-- Doc refresh: 2026-02-16 update adds boot-path stabilization results; after PFS/MFS/RS
-  init-handshake and ilp32 user-address-top fixes, pre-shell SIGSEGV was not reproduced.
+- Doc refresh: 2026-02-16 update adds post-`memset`-fix ramdisk retest; `ps` stack-top SIGSEGV
+  signature is no longer reproduced in diskless profile.
 
 ## 系统要求 / System Requirements
 
@@ -219,13 +220,15 @@ MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
 - 用户态编译测试：通过（脚本使用 in-tree toolchain + sysroot，统一 `-std=gnu99`）。
 - 内核启动：通过，日志可见 `MINIX` banner、`VFS: init_root done`、`init: exec /bin/sh /etc/rc`。
 - 交互冒烟：通过，在 QEMU shell 中执行 `echo SMOKE_OK` 返回 `SMOKE_OK`。
-- 已知未完成：virtio 启动链路仍可能触发 `minix-service` SIGSEGV；SMP 仍为 skip（not yet implemented）。
+- 增量复测：通过，`ps -aux` 返回进程列表且不再 SIGSEGV；`cat /proc/meminfo` 可正常输出。
+- 已知未完成：含盘 virtio 启动链路仍需单独复核；SMP 仍为 skip（not yet implemented）。
 
 **English (as of 2026-02-16)**
 - Userland compile tests: pass (in-tree toolchain + sysroot, `-std=gnu99`).
 - Kernel boot: pass; logs show `MINIX` banner, `VFS: init_root done`, and `init: exec /bin/sh /etc/rc`.
 - Interactive smoke: pass; running `echo SMOKE_OK` in QEMU shell returns `SMOKE_OK`.
-- Remaining gaps: virtio startup path may still hit `minix-service` SIGSEGV; SMP remains skipped (not yet implemented).
+- Incremental retest: pass; `ps -aux` no longer crashes and `cat /proc/meminfo` returns expected output.
+- Remaining gaps: with-disk virtio startup still needs focused recheck; SMP remains skipped (not yet implemented).
 
 #### 5.1 启动稳定化验证记录 / Boot Stabilization Validation
 
@@ -280,6 +283,27 @@ Current baseline logs include `MINIX` and continue to `init`/`sh`.
 当前状态：已满足最低通过条件（可达 shell 并可执行交互命令）；详见 `RISC64-STATUS.md`。  
 Current status: minimum pass criteria met (shell reachable and interactive command works); see `RISC64-STATUS.md`.
 
+#### 5.4 2026-02-16 交互复测补充 / 2026-02-16 Interactive Retest Addendum
+
+复测命令 / Retest commands:
+```bash
+./minix/scripts/qemu-riscv64.sh -s \
+  -k obj/destdir.evbriscv64/boot/minix/.temp/kernel \
+  -B obj/destdir.evbriscv64
+```
+
+来宾内命令 / In-guest commands:
+```sh
+ps -aux
+cat /proc/meminfo
+```
+
+结论 / Result:
+- `ps -aux`：不再触发此前 `pc in memset` 的栈顶 SIGSEGV 签名。  
+  `ps -aux`: no longer reproduces the previous stack-top SIGSEGV with `pc` in `memset`.
+- `cat /proc/meminfo`：可返回数据；仍可见一次可恢复 safecopy fallback（已在 `issue.md` #17 跟踪）。  
+  `cat /proc/meminfo`: returns data; one recoverable safecopy fallback is still observable (tracked in `issue.md` #17).
+
 ## 已知问题与解决方案 / Known Issues and Workarounds
 
 ### 0. 运行时关键问题（持续跟踪）/ Runtime Key Issues (Ongoing)
@@ -309,12 +333,19 @@ Current status: minimum pass criteria met (shell reachable and interactive comma
    **SBI legacy IPI/fence passes VA**  
    - Status: PA-side fix is in tree; verify in SMP-related runtime tests.
 
-5. **virtio 启动路径仍不稳定（minix-service SIGSEGV）**  
-   - 表现：`minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0` 可能崩溃。  
-   - 建议：作为下一优先级问题处理（见 `issue.md` A3）。  
-   **Virtio startup path still unstable (`minix-service` SIGSEGV)**  
-   - Symptom: `minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0` may crash.
-   - Priority: next debugging target (see `issue.md` A3).
+5. **virtio 启动路径仍需含盘复核（A3）**  
+   - 现状：ramdisk 轮廓下 `memset` 栈顶 SIGSEGV 已缓解；含盘 virtio 链路需单独复测。  
+   - 建议：使用 `-i <disk image>` 轮廓复跑 `minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0`。  
+   **Virtio startup path still needs with-disk recheck (A3)**  
+   - Status: stack-top SIGSEGV signature is mitigated in ramdisk profile; with-disk path still needs focused retest.
+   - Action: re-run `minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0` under `-i <disk image>` profile.
+
+6. **in-tree linker 与 `R_RISCV_RELAX` 兼容性问题（#24）**  
+   - 表现：增量重建（如 `service/memory`）可能报 `ld: unrecognized relocation (0x33)`。  
+   - 建议：升级/替换 in-tree `ld`，或先加能力探测并给出明确失败提示。  
+   **in-tree linker compatibility issue with `R_RISCV_RELAX` (#24)**  
+   - Symptom: incremental rebuilds (for example `service/memory`) may fail with `ld: unrecognized relocation (0x33)`.
+   - Action: upgrade/replace in-tree `ld`, or add capability checks with actionable diagnostics.
 
 详细证据与文件行号见 `issue.md`。  
 See `issue.md` for evidence and file/line references.
@@ -474,4 +505,4 @@ MINIX 3 is licensed under BSD. See LICENSE in the source tree.
 ---
 
 **最后更新 / Last updated**：2026-02-16  
-**版本 / Version**：1.4
+**版本 / Version**：1.5

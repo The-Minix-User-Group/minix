@@ -1,7 +1,7 @@
 # RISC-V MINIX Kernel Build Log / RISC-V MINIX 内核构建日志
 
-**Last updated / 最后更新**: 2026-01-07  
-**Version / 版本**: 1.2  
+**Last updated / 最后更新**: 2026-02-16  
+**Version / 版本**: 1.3  
 **Purpose / 用途**: Append-only record of build commands and outcomes. / 记录构建命令与结果（追加式）。
 
 ## Log Entries / 日志条目
@@ -87,3 +87,63 @@ MAKEOBJDIRPREFIX=/root/minix/obj \
 **Result / 结果**:
 - Tools build succeeded after fixing `llvm/IR/ValueMap.h` explicit bool conversion.
 - Kernel build succeeded with GCC toolchain + `MAKEOBJDIRPREFIX` setup.
+
+### Entry 8 — RV64 memset Fix + Ramdisk/Memory Rebuild + QEMU Smoke (2026-02-16) / 修复 memset + 重建 ramdisk/memory + QEMU 冒烟
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Toolchain / 工具链**: `obj/tooldir.Linux-6.12.63+deb13-amd64-x86_64`
+
+**Context / 背景**:
+- Interactive repro showed `ps -aux` SIGSEGV with stack-top fault (`sp=0xefbffff0`) and `pc` inside userland `memset`.
+- `cat /proc/meminfo` path showed repeated safecopy fallback logs (`-14` / retry).
+
+**Code changes linked to this run / 本轮关联代码改动**:
+1. `lib/libc/arch/riscv/string/Makefile.inc`  
+   Added:
+   ```make
+   COPTS.memset.c+= -fno-builtin-memset -fno-tree-loop-distribute-patterns
+   ```
+   to prevent RV64 recursive memset codegen.
+2. `minix/servers/vfs/request.c`  
+   Added procfs-specific magic-grant cpflag selection to avoid first-pass `CPF_TRY`
+   retry churn on `/proc/*` read/stat/getdents/rdlink paths.
+
+**Build and image steps / 构建与镜像步骤**:
+```bash
+# Rebuild ramdisk image from in-tree obj program paths
+obj/tooldir.Linux-6.12.63+deb13-amd64-x86_64/bin/nbmake-evbriscv64 \
+  -C minix/drivers/storage/ramdisk \
+  MACHINE=evbriscv64 MACHINE_ARCH=riscv64 \
+  NETBSDSRCDIR=$PWD DESTDIR=$PWD/obj/destdir.evbriscv64 \
+  image
+
+# Rebuild/install memory service with refreshed imgrd
+obj/tooldir.Linux-6.12.63+deb13-amd64-x86_64/bin/nbmake-evbriscv64 \
+  -C minix/drivers/storage/memory \
+  MACHINE=evbriscv64 MACHINE_ARCH=riscv64 \
+  NETBSDSRCDIR=$PWD DESTDIR=$PWD/obj/destdir.evbriscv64 \
+  LDFLAGS= dependall install
+```
+
+**QEMU command / QEMU 启动命令**:
+```bash
+./minix/scripts/qemu-riscv64.sh \
+  -s \
+  -k obj/destdir.evbriscv64/boot/minix/.temp/kernel \
+  -B obj/destdir.evbriscv64
+```
+
+**In-guest smoke commands / 来宾内冒烟命令**:
+```sh
+ps -aux
+cat /proc/meminfo
+```
+
+**Observed result / 观察结果**:
+- `ps -aux`: no SIGSEGV; process list returned and shell prompt restored.
+- `cat /proc/meminfo`: prints meminfo successfully.
+- A single recoverable safecopy fallback is still visible on procfs read path, tracked as `issue.md` #17.
+
+**Toolchain note / 工具链备注**:
+- In-tree linker compatibility issue with `R_RISCV_RELAX` remained visible during incremental rebuild attempts
+  (`ld: unrecognized relocation (0x33)`), tracked as `issue.md` #24.
