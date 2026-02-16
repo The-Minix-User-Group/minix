@@ -468,10 +468,14 @@ int do_init_ready(message *m_ptr)
   int result;
   int r;
 
-  who_p = _ENDPOINT_P(m_ptr->m_source);
   result = m_ptr->m_rs_init.result;
-
-  rp = rproc_ptr[who_p];
+  if ((r = rs_isokservice(m_ptr->m_source, &who_p, &rp)) != OK) {
+      if(rs_verbose)
+          printf("RS: do_init_ready: invalid source %d (%d)\n",
+              m_ptr->m_source, r);
+      return EINVAL;
+  }
+  assert(rproc_ptr[who_p] == rp);
   rpub = rp->r_pub;
 
   /* Make sure the originating service was requested to initialize. */
@@ -893,11 +897,17 @@ int do_upd_ready(message *m_ptr)
   struct rprocupd *prev_rpupd, *rpupd;
   int who_p;
   int result;
+  int r;
   int is_rs;
   int i;
 
-  who_p = _ENDPOINT_P(m_ptr->m_source);
-  rp = rproc_ptr[who_p];
+  if ((r = rs_isokservice(m_ptr->m_source, &who_p, &rp)) != OK) {
+      if(rs_verbose)
+          printf("RS: source %d sent invalid update ready (%d)\n",
+              m_ptr->m_source, r);
+      return EINVAL;
+  }
+  assert(rproc_ptr[who_p] == rp);
   result = m_ptr->m_rs_update.result;
 
   /* Make sure the originating service was requested to prepare for update. */
@@ -1306,4 +1316,3 @@ static int check_request(struct rs_start *rs_start)
 
   return OK;
 }
-

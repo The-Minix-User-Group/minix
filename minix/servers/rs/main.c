@@ -46,6 +46,7 @@ int main(void)
   int call_nr, who_e,who_p;			/* call number and caller */
   int result;                 			/* result to return */
   int s;
+  struct rproc *rp;
 
   /* SEF local startup. */
   sef_local_startup();
@@ -79,15 +80,15 @@ int main(void)
        */
       if (is_ipc_notify(ipc_status)) {
           switch (who_p) {
-          case CLOCK:
-	      do_period(&m);			/* check services status */
-	      continue;
-	  default:				/* heartbeat notification */
-	      if (rproc_ptr[who_p] != NULL) {	/* mark heartbeat time */ 
-		  rproc_ptr[who_p]->r_alive_tm = m.m_notify.timestamp;
-	      } else {
-		  printf("RS: warning: got unexpected notify message from %d\n",
-		      m.m_source);
+		  case CLOCK:
+		      do_period(&m);			/* check services status */
+		      continue;
+		  default:				/* heartbeat notification */
+		      if (rs_isokservice(who_e, &who_p, &rp) == OK) {
+			  rp->r_alive_tm = m.m_notify.timestamp;
+		      } else {
+			  printf("RS: warning: got unexpected notify message from %d\n",
+			      m.m_source);
 	      }
 	  }
       }
@@ -650,15 +651,17 @@ static int sef_cb_signal_manager(endpoint_t target, int signo)
   int target_p;
   struct rproc *rp;
   message m;
+  int r;
 
   /* Lookup slot. */
-  if(rs_isokendpt(target, &target_p) != OK || rproc_ptr[target_p] == NULL) {
+  r = rs_isokservice(target, &target_p, &rp);
+  if(r != OK) {
       if(rs_verbose)
           printf("RS: ignoring spurious signal %d for process %d\n",
               signo, target);
       return OK; /* clear the signal */
   }
-  rp = rproc_ptr[target_p];
+  assert(rproc_ptr[target_p] == rp);
 
   /* Don't bother if a termination signal has already been processed. */
   if((rp->r_flags & RS_TERMINATED) && !(rp->r_flags & RS_EXITING)) {
@@ -786,6 +789,7 @@ endpoint_t endpoint;
 {
 /* Block and catch an init ready message from the given source. */
   int r;
+  int src_p;
   int ipc_status;
   message m;
   struct rproc *rp;
@@ -809,7 +813,10 @@ endpoint_t endpoint;
       panic("unexpected reply from service: %d", m.m_source);
   }
   result = m.m_rs_init.result;
-  rp = rproc_ptr[_ENDPOINT_P(m.m_source)];
+  if((r = rs_isokservice(m.m_source, &src_p, &rp)) != OK) {
+      panic("invalid init source %d (%d)", m.m_source, r);
+  }
+  assert(rproc_ptr[src_p] == rp);
 
   /* Check result. */
   if(result != OK) {

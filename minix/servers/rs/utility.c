@@ -359,6 +359,26 @@ int rs_isokendpt(endpoint_t endpoint, int *proc)
 }
 
 /*===========================================================================*
+ *				rs_isokservice			 	     *
+ *===========================================================================*/
+int rs_isokservice(endpoint_t endpoint, int *proc, struct rproc **rpp)
+{
+	int r;
+
+	if ((r = rs_isokendpt(endpoint, proc)) != OK)
+		return r;
+
+	if (*proc < 0 || *proc >= NR_PROCS)
+		return EINVAL;
+
+	*rpp = rproc_ptr[*proc];
+	if (*rpp == NULL || (*rpp)->r_pub == NULL)
+		return EDEADEPT;
+
+	return OK;
+}
+
+/*===========================================================================*
  *				sched_init_proc			 	     *
  *===========================================================================*/
 int sched_init_proc(struct rproc *rp)
@@ -544,4 +564,3 @@ void print_update_status()
 
 #undef rupdate_flag_c
 }
-

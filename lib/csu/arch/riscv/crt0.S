@@ -35,6 +35,10 @@ RCSID("$NetBSD: crt0.S,v 1.1 2014/09/19 17:36:25 matt Exp $")
 
 STRONG_ALIAS(_start,__start)
 
+/* Some toolchains expose only _gp; provide the canonical alias used by startup. */
+.globl __global_pointer$
+.set __global_pointer$, _gp
+
 _ENTRY(__start)
 	/*
 	 * void ___start(void (*cleanup)(void), const Obj_Entry *obj,

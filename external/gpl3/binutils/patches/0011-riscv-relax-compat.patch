@@ -1,0 +1,71 @@
+--- dist.orig/include/elf/riscv.h
++++ dist/include/elf/riscv.h
+@@ -74,6 +74,8 @@
+   RELOC_NUMBER (R_RISCV_GNU_VTINHERIT, 41)
+   RELOC_NUMBER (R_RISCV_GNU_VTENTRY, 42)
+   RELOC_NUMBER (R_RISCV_ALIGN, 43)
++  /* Relaxation marker relocations emitted by newer RISC-V toolchains.  */
++  RELOC_NUMBER (R_RISCV_RELAX, 51)
+ END_RELOC_NUMBERS (R_RISCV_max)
+ 
+ /* Processor specific flags for the ELF header e_flags field.  */
+--- dist.orig/bfd/elfxx-riscv.c
++++ dist/bfd/elfxx-riscv.c
+@@ -720,6 +720,14 @@
+ reloc_howto_type *
+ riscv_elf_rtype_to_howto (unsigned int r_type)
+ {
++  /*
++   * Newer RISC-V toolchains emit R_RISCV_RELAX as a linker hint relocation.
++   * This binutils branch does not implement relaxation, but we still need to
++   * parse and carry these relocs so static links do not fail on input objects.
++   */
++  if (r_type == R_RISCV_RELAX)
++    return &howto_table[(int) R_RISCV_NONE];
++
+   if ((unsigned int)r_type >= ARRAY_SIZE (howto_table))
+     {
+       (*_bfd_error_handler)(_("unrecognized relocation (0x%x)"), r_type);
+--- dist.orig/bfd/elfnn-riscv.c
++++ dist/bfd/elfnn-riscv.c
+@@ -540,6 +540,10 @@
+ 
+       switch (r_type)
+ 	{
++	case R_RISCV_RELAX:
++	  /* Pure linker-hint relocation; no symbol accounting needed.  */
++	  break;
++
+ 	case R_RISCV_TLS_GD_HI20:
+ 	  if (!riscv_elf_record_got_reference (abfd, info, h, r_symndx)
+ 	      || !riscv_elf_record_tls_type (abfd, h, r_symndx, GOT_TLS_GD))
+@@ -790,6 +794,10 @@
+ 
+       switch (ELFNN_R_TYPE (rel->r_info))
+ 	{
++	case R_RISCV_RELAX:
++	  /* Pure hint relocation; no GOT/PLT reference side effects.  */
++	  break;
++
+ 	case R_RISCV_GOT_HI20:
+ 	case R_RISCV_TLS_GOT_HI20:
+ 	case R_RISCV_TLS_GD_HI20:
+@@ -1465,6 +1473,10 @@
+ 
+   switch (ELFNN_R_TYPE (rel->r_info))
+     {
++    case R_RISCV_RELAX:
++      /* Relaxation marker only; no instruction/data rewrite needed.  */
++      return bfd_reloc_ok;
++
+     case R_RISCV_HI20:
+     case R_RISCV_TPREL_HI20:
+     case R_RISCV_PCREL_HI20:
+@@ -1769,6 +1781,7 @@
+       switch (r_type)
+ 	{
+ 	case R_RISCV_NONE:
++	case R_RISCV_RELAX:
+ 	case R_RISCV_TPREL_ADD:
+ 	case R_RISCV_COPY:
+ 	case R_RISCV_JUMP_SLOT:

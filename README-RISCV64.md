@@ -9,37 +9,39 @@ targeting the QEMU virt platform.
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.2
-- 最后更新：2026-01-07
+- 版本：1.6
+- 最后更新：2026-02-16
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.2
-- Last updated: 2026-01-07
+- Version: 1.6
+- Last updated: 2026-02-16
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
 
-## 当前状态（截至 2026-01-07）/ Current Status (as of 2026-01-07)
+## 当前状态（截至 2026-02-16）/ Current Status (as of 2026-02-16)
 
 **中文**
 - 构建：可通过（需使用 workaround 组合，见本文构建命令与 `RISC64-STATUS.md`）
-- 运行：内核可进入早期初始化，但尚未稳定进入用户态
-- 关键风险：PTROOT 32 位截断、UART 阻塞读缺少回复、leaf->non-leaf 拆分后 TLB 刷新缺失、SBI legacy IPI/fence 传递 VA（详见 `issue.md`）
-- 进度估计：约 60%（内核基础具备，VM/IO 关键链路仍待修复）
+- 运行：QEMU 可稳定进入 shell，并通过 `echo SMOKE_OK`、`ps -aux`、`cat /proc/meminfo` 交互复测
+- 关键风险：含盘 virtio 启动路径待复核、`procfs` safecopy 回退噪声、SMP 未实现、GCC-only 增量链路 ABI 参数兼容性（#25，详见 `issue.md`）
+- 进度估计：约 72%（启动链路与基础用户态已稳定，设备与工具链链路仍待完善）
 - 代码更新（至 2026-01-06 01:00 前）：用户态 gp 初始化（crt0 + gp.c）、exec/ucontext 与
   VM 执行权限标记、IPC/缺页 ABI 修复（64 位地址、senda 参数顺序）。
-- 文档更新：已根据 2026-01-06 01:00 前代码变更补充文档，自 2026-01-06 起未重新构建或运行测试。
+- 文档更新：2026-02-16 追加 `memset` 递归修复后的 ramdisk 复测结果，`ps -aux` 不再复现 SIGSEGV。
 
 **English**
 - Build: passes with workaround flags (see commands below and `RISC64-STATUS.md`)
-- Runtime: kernel reaches early init; user space not yet stable
-- Key risks: PTROOT 32-bit truncation, UART blocking read reply, missing TLB flush after
-  leaf->non-leaf splits, SBI legacy IPI/fence VA usage (see `issue.md`)
-- Progress estimate: ~60% (core kernel in place; VM/IO still pending)
+- Runtime: QEMU reaches a stable shell prompt and passes interactive retests:
+  `echo SMOKE_OK`, `ps -aux`, and `cat /proc/meminfo`
+- Key risks: with-disk virtio startup path recheck, procfs safecopy fallback noise,
+  SMP not implemented, and GCC-only incremental ABI-flag compatibility (#25; see `issue.md`)
+- Progress estimate: ~72% (boot + basic userland path stabilized; device/toolchain work remains)
 - Code updates (through 2026-01-06 01:00): userland gp init (crt0 + gp.c),
   exec/ucontext + VM exec flags, IPC/pagefault ABI fixes (64-bit addr, senda arg order).
-- Doc refresh: updated after reviewing pre-2026-01-06 01:00 changes; no new build or test run since 2026-01-06.
+- Doc refresh: 2026-02-16 update adds post-`memset`-fix ramdisk retest; `ps` stack-top SIGSEGV
+  signature is no longer reproduced in diskless profile.
 
 ## 系统要求 / System Requirements
 
@@ -214,42 +216,33 @@ MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
 ./minix/tests/riscv64/run_tests.sh all
 ```
 
-**中文（截至 2026-01-07）**
-- 用户态编译测试：全部通过（脚本已自动使用 in-tree toolchain + sysroot，并统一 `-std=gnu99`）。
-- 内核启动测试：失败，QEMU 中出现 `rv64: kernel_main` 后触发 `System reset...`，详见 `/tmp/boot_test.log`。
-  该失败与地址空间切换等关键问题高度相关（详见 `issue.md`）。
-- SMP initialization：当前脚本固定标记为跳过（not yet implemented）。
-- 备注：本节结果沿用 2026-01-06 的结论，本次未重新运行；上述代码变更未重新验证。
+**中文（截至 2026-02-16）**
+- 用户态编译测试：通过（脚本使用 in-tree toolchain + sysroot，统一 `-std=gnu99`）。
+- 内核启动：通过，日志可见 `MINIX` banner、`VFS: init_root done`、`init: exec /bin/sh /etc/rc`。
+- 交互冒烟：通过，在 QEMU shell 中执行 `echo SMOKE_OK` 返回 `SMOKE_OK`。
+- 增量复测：通过，`ps -aux` 返回进程列表且不再 SIGSEGV；`cat /proc/meminfo` 可正常输出。
+- 已知未完成：含盘 virtio 启动链路仍需单独复核；SMP 仍为 skip（not yet implemented）。
 
-**English (as of 2026-01-07)**
-- Userland compile tests: pass (script uses in-tree toolchain + sysroot and `-std=gnu99`).
-- Kernel boot test: fails; QEMU shows `rv64: kernel_main` then `System reset...` (see `/tmp/boot_test.log`).
-  This correlates with address-space handoff and other critical issues (see `issue.md`).
-- SMP initialization: script marks as skipped (not yet implemented).
-- Note: results carried forward from 2026-01-06; pre-2026-01-06 01:00 changes were not re-tested.
+**English (as of 2026-02-16)**
+- Userland compile tests: pass (in-tree toolchain + sysroot, `-std=gnu99`).
+- Kernel boot: pass; logs show `MINIX` banner, `VFS: init_root done`, and `init: exec /bin/sh /etc/rc`.
+- Interactive smoke: pass; running `echo SMOKE_OK` in QEMU shell returns `SMOKE_OK`.
+- Incremental retest: pass; `ps -aux` no longer crashes and `cat /proc/meminfo` returns expected output.
+- Remaining gaps: with-disk virtio startup still needs focused recheck; SMP remains skipped (not yet implemented).
 
-#### 5.1 内核启动复位排查记录 / Boot Reset Investigation
+#### 5.1 启动稳定化验证记录 / Boot Stabilization Validation
 
-1. 执行测试：`./minix/tests/riscv64/run_tests.sh all`  
-   Run test: `./minix/tests/riscv64/run_tests.sh all`
-2. 查看日志：`/tmp/boot_test.log`  
-   Inspect log: `/tmp/boot_test.log`
-   - 可见 OpenSBI banner  
-     OpenSBI banner present
-   - 内核初始化输出：`rv64: kernel_main`、`rv64: kmain entry`、`rv64: mods_count=0`  
-     Kernel init output: `rv64: kernel_main`, `rv64: kmain entry`, `rv64: mods_count=0`
-   - 随后出现 `System reset...`，OpenSBI banner 重复  
-     Then `System reset...` and OpenSBI banner repeats
-3. 结论：内核已进入早期初始化，但在继续启动过程中触发复位（原因待进一步定位）  
-   Conclusion: kernel reaches early init but resets during further boot (root cause pending)
-4. 初步排查建议：  
-   Initial investigation steps:
-   - 关注是否有显式复位/关机路径被触发（`minix/kernel/arch/riscv64/sbi.c`、`minix/kernel/arch/riscv64/exception.c`）  
-     Check explicit reset/shutdown paths (`minix/kernel/arch/riscv64/sbi.c`, `minix/kernel/arch/riscv64/exception.c`)
-   - 在 `rv64:` 打点附近继续细化日志，定位复位发生点  
-     Add more logging around `rv64:` markers to locate reset point
-   - 若需要交互调试，使用 `minix/scripts/qemu-riscv64.sh -d -k minix/kernel/obj/kernel -B obj/destdir.evbriscv64`  
-     For interactive debug, use `minix/scripts/qemu-riscv64.sh -d -k minix/kernel/obj/kernel -B obj/destdir.evbriscv64`
+1. 非交互验证 / Non-interactive check:
+   - `timeout 120 ./minix/scripts/qemu-riscv64.sh -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64 > /tmp/qemu-fix20.log 2>&1 || true`
+2. 关键日志断言 / Key log assertions:
+   - 出现 `VFS: init_root done`
+   - 出现 `init: exec /bin/sh /etc/rc`
+   - 未出现 `VM: pagefault: SIGSEGV ... bad addr ...`
+3. 交互验证 / Interactive check:
+   - 进入 `#` 提示符后执行 `echo SMOKE_OK`
+   - 输出 `SMOKE_OK`
+4. 结论 / Conclusion:
+   - 启动链路已从“早期复位/崩溃”阶段前进到“可交互 shell”阶段。
 
 #### 5.2 测试脚本启动判定说明 / Boot Test Criteria
 
@@ -264,14 +257,14 @@ grep -q "rv64: arch_post_init" /tmp/boot_test.log
 grep -q "rv64: arch_boot_proc VM" /tmp/boot_test.log
 ```
 
-当前内核日志未输出 `MINIX` 字符串，因此该用例会失败。  
-The current log does not include `MINIX`, so the test fails.
+当前基线日志已输出 `MINIX`，并可继续到 `init`/`sh`。  
+Current baseline logs include `MINIX` and continue to `init`/`sh`.
 
 可选处理方式 / Options:
-- 将判定条件调整为当前已有的启动标记（例如 `rv64: kernel_main` 或 `rv64: kmain entry`）  
-  Adjust the check to current markers (e.g., `rv64: kernel_main` or `rv64: kmain entry`)
-- 或者在内核早期输出包含 `MINIX` 的 banner  
-  Or emit a `MINIX` banner early in boot
+- 建议保留现有 `MINIX` / `arch_post_init` / `arch_boot_proc VM` 作为三重判定。  
+  Keep the existing `MINIX` / `arch_post_init` / `arch_boot_proc VM` checks.
+- 额外可加入 `VFS: init_root done` 以覆盖用户态前置阶段。  
+  Optionally add `VFS: init_root done` to cover pre-userland milestone.
 
 #### 5.3 运行判定标准（最低可用）/ Runtime Pass Criteria (Minimum)
 
@@ -287,48 +280,85 @@ The current log does not include `MINIX`, so the test fails.
 2) 出现 `pagefault in VM` 或 `panic`  
    `pagefault in VM` or `panic` appears
 
-当前状态：未满足通过条件（详见 `issue.md` 与 `RISC64-STATUS.md`）。  
-Current status: pass criteria not met (see `issue.md` and `RISC64-STATUS.md`).
+当前状态：已满足最低通过条件（可达 shell 并可执行交互命令）；详见 `RISC64-STATUS.md`。  
+Current status: minimum pass criteria met (shell reachable and interactive command works); see `RISC64-STATUS.md`.
+
+#### 5.4 2026-02-16 交互复测补充 / 2026-02-16 Interactive Retest Addendum
+
+复测命令 / Retest commands:
+```bash
+./minix/scripts/qemu-riscv64.sh -s \
+  -k obj/destdir.evbriscv64/boot/minix/.temp/kernel \
+  -B obj/destdir.evbriscv64
+```
+
+来宾内命令 / In-guest commands:
+```sh
+ps -aux
+cat /proc/meminfo
+```
+
+结论 / Result:
+- `ps -aux`：不再触发此前 `pc in memset` 的栈顶 SIGSEGV 签名。  
+  `ps -aux`: no longer reproduces the previous stack-top SIGSEGV with `pc` in `memset`.
+- `cat /proc/meminfo`：可返回数据；仍可见一次可恢复 safecopy fallback（已在 `issue.md` #17 跟踪）。  
+  `cat /proc/meminfo`: returns data; one recoverable safecopy fallback is still observable (tracked in `issue.md` #17).
 
 ## 已知问题与解决方案 / Known Issues and Workarounds
 
-### 0. 运行时关键问题（需先修复）/ Runtime Critical Issues (Fix First)
+### 0. 运行时关键问题（持续跟踪）/ Runtime Key Issues (Ongoing)
 
-1. **PTROOT 32 位截断（sys_vmctl）**  
-   - 表现：`pt_bind` 后 SATP 切换异常/超时  
-   - 原因：`SVMCTL_PTROOT` 为 32-bit，riscv64 高位丢失  
-   - 建议：改为 64-bit 传参并端到端更新（VM/内核/syslib）  
-   **PTROOT 32-bit truncation (sys_vmctl)**  
-   - Symptom: SATP switch fails/timeouts after `pt_bind`  
-   - Cause: `SVMCTL_PTROOT` is 32-bit; riscv64 high bits lost  
-   - Fix: make PTROOT 64-bit end-to-end (VM/kernel/syslib)
+1. **PTROOT/地址空间切换链路需持续回归**  
+   - 现状：启动路径已稳定到 shell，但页表根切换相关修复仍需持续压力验证。  
+   - 建议：保留高频 QEMU 回归并关注 `sys_vmctl`/`pt_bind` 路径。  
+   **PTROOT/address-space handoff needs continued regression coverage**  
+   - Status: boot is stable to shell, but PTROOT-related fixes still need stress validation.
+   - Action: keep frequent QEMU regressions around `sys_vmctl`/`pt_bind`.
 
 2. **UART 阻塞读缺少回复**  
-   - 表现：用户态 read 卡住  
-   - 原因：驱动返回 `EDONTREPLY` 但中断路径未回复  
-   - 建议：保存请求并在 RX 中断时回复  
+   - 现状：代码侧已补齐挂起回复逻辑，需继续运行时验证。  
+   - 建议：结合 console 交互与高频读写场景回归。  
    **UART blocking read lacks deferred reply**  
-   - Symptom: userland read blocks  
-   - Cause: driver returns `EDONTREPLY` without reply on RX interrupt  
-   - Fix: store pending read and reply on RX IRQ
+   - Status: pending-reply logic is in tree; keep validating with runtime stress.
 
 3. **leaf → non-leaf 变换未刷新 TLB**  
-   - 表现：映射不一致/偶发错误  
-   - 原因：页表拆分后未进行 SFENCE  
-   - 建议：在拆分后刷新 TLB  
+   - 现状：拆分后刷新逻辑已补充，需继续观察偶发映射异常。  
+   - 建议：在 VM 压测下验证无陈旧 TLB 影响。  
    **Leaf→non-leaf split lacks TLB flush**  
-   - Symptom: inconsistent mappings  
-   - Cause: missing SFENCE after split  
-   - Fix: flush TLB after split
+   - Status: flush logic added; runtime validation is still required.
 
 4. **SBI legacy IPI/fence 仍传递 VA**  
-   - 表现：SMP IPI 或远程 fence 可能失效  
-   - 原因：SBI v0.1 legacy 调用传参为 VA 而非 PA  
-   - 建议：切换到 SBI v0.2+ 扩展或传递 PA  
+   - 现状：已按 PA 路径修复，待后续 SMP/中断链路实测。  
+   - 建议：SMP 可用后优先做 IPI/fence 回归。  
    **SBI legacy IPI/fence passes VA**  
-   - Symptom: SMP IPIs or remote fences may fail  
-   - Cause: SBI v0.1 legacy calls pass VA, not PA  
-   - Fix: move to SBI v0.2+ extensions or pass PA
+   - Status: PA-side fix is in tree; verify in SMP-related runtime tests.
+
+5. **virtio 启动路径仍需含盘复核（A3）**  
+   - 现状：ramdisk 轮廓下 `memset` 栈顶 SIGSEGV 已缓解；含盘 virtio 链路需单独复测。  
+   - 建议：使用 `-i <disk image>` 轮廓复跑 `minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0`。  
+   **Virtio startup path still needs with-disk recheck (A3)**  
+   - Status: stack-top SIGSEGV signature is mitigated in ramdisk profile; with-disk path still needs focused retest.
+   - Action: re-run `minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0` under `-i <disk image>` profile.
+
+6. **in-tree linker `R_RISCV_RELAX` 兼容性（#24，已缓解）**  
+   - 现状：已加入 `external/gpl3/binutils/patches/0011-riscv-relax-compat.patch`，
+     让 in-tree `ld` 将 `R_RISCV_RELAX` 视为 hint/no-op。  
+   - 验证：`ld -r --whole-archive obj/destdir.evbriscv64/usr/lib/libaudiodriver.a --no-whole-archive -o /tmp/libaudiodriver.whole.o`
+     使用 in-tree `ld` 可通过，不再触发 `unrecognized relocation (0x33)`。  
+   **in-tree linker compatibility with `R_RISCV_RELAX` (#24, mitigated)**  
+   - Status: `external/gpl3/binutils/patches/0011-riscv-relax-compat.patch` handles
+     `R_RISCV_RELAX` as a linker hint/no-op in in-tree `ld`.
+   - Validation: in-tree `ld` now links RELAX-bearing archives without
+     `unrecognized relocation (0x33)`.
+
+7. **GCC-only 增量构建 ABI 参数兼容性（#25）**  
+   - 表现：在显式 `ACTIVE_CC=gcc` 路径下，部分组件重建会报
+     `riscv64-elf32-minix-gcc: error: unrecognized command line option '-mabi=lp64d'`。  
+   - 建议：补齐 ABI 参数能力探测，并在 GCC 路径中统一可接受的 `-mabi` 组合。  
+   **GCC-only incremental ABI-flag compatibility (#25)**  
+   - Symptom: explicit `ACTIVE_CC=gcc` rebuild path can fail with
+     `unrecognized command line option '-mabi=lp64d'`.
+   - Action: add ABI-flag capability probing and normalize GCC-accepted `-mabi` selection.
 
 详细证据与文件行号见 `issue.md`。  
 See `issue.md` for evidence and file/line references.
@@ -407,22 +437,25 @@ cd minix/tests/riscv64
 
 ```bash
 # 基本运行 / Basic run
-./minix/scripts/qemu-riscv64.sh -k minix/kernel/obj/kernel -B obj/destdir.evbriscv64
+./minix/scripts/qemu-riscv64.sh -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64
 
 # 调试模式 / Debug mode
-./minix/scripts/qemu-riscv64.sh -d -k minix/kernel/obj/kernel -B obj/destdir.evbriscv64
+./minix/scripts/qemu-riscv64.sh -d -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64
 
 # 使用 GDB 调试 / GDB
-./minix/scripts/gdb-riscv64.sh minix/kernel/obj/kernel
+./minix/scripts/gdb-riscv64.sh obj.intrgcc/minix/kernel/kernel
+
+# 交互冒烟 / Interactive smoke
+# 在 shell 提示符下执行：echo SMOKE_OK
 ```
 
 ## 构建输出 / Build Outputs
 
-1. **交叉编译工具链 / Toolchain**：`obj/tooldir.*/bin/riscv64-elf32-minix-*`
-2. **内核镜像 / Kernel**：`minix/kernel/obj/kernel`
-3. **系统库 / Libraries**：`obj/destdir.evbriscv64/usr/lib/`
-4. **服务器程序 / Servers**：`obj/destdir.evbriscv64/sbin/`
-5. **用户程序 / User programs**：`obj/destdir.evbriscv64/usr/bin/`
+1. **交叉编译工具链 / Toolchain**：`obj.intrgcc/tooldir/bin/riscv64-elf32-minix-*`
+2. **内核镜像 / Kernel**：`obj.intrgcc/minix/kernel/kernel`
+3. **系统库 / Libraries**：`obj.intrgcc/destdir.evbriscv64/usr/lib/`
+4. **服务器程序 / Servers**：`obj.intrgcc/destdir.evbriscv64/sbin/`
+5. **用户程序 / User programs**：`obj.intrgcc/destdir.evbriscv64/usr/bin/`
 
 ## 性能优化 / Performance Optimization
 
@@ -439,7 +472,7 @@ cd minix/tests/riscv64
 
 - 使用内存屏障确保内存访问顺序 / Use memory barriers for ordering
 - 优化中断处理路径 / Optimize interrupt paths
-- 支持 SMP 多核（通过 PLIC）/ SMP support via PLIC
+- SMP 仍在实现中（当前测试为单核路径）/ SMP is still under implementation (current testing focuses on single-core paths)
 
 ## 开发指南 / Development Guide
 
@@ -484,5 +517,5 @@ MINIX 3 is licensed under BSD. See LICENSE in the source tree.
 
 ---
 
-**最后更新 / Last updated**：2026-01-07  
-**版本 / Version**：1.2
+**最后更新 / Last updated**：2026-02-16  
+**版本 / Version**：1.5

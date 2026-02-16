@@ -1,27 +1,30 @@
 # MINIX RISC-V 64-bit Port Status / MINIX RISC-V 64 位移植状态
 
-**Date / 日期**: 2026-01-07  
-**Version / 版本**: 1.2  
-**Status / 状态**: Phase 1 in progress — buildable with workarounds, runtime unstable  
-**Progress / 进度**: ~60% (core kernel present; VM/IO issues outstanding)
+**Date / 日期**: 2026-02-16  
+**Version / 版本**: 1.4  
+**Status / 状态**: Phase 2 stabilization — boots to shell; core smoke mostly passes  
+**Progress / 进度**: ~72% (boot/userland path stabilized; with-disk/driver/toolchain gaps remain)
 
 ## Summary / 摘要
 
 **中文**
-- 构建可通过（需使用绕过项与特定构建变量），详见 `README-RISCV64.md`。
-- QEMU 启动可进入早期内核初始化，但用户态未稳定进入。
-- 关键风险集中在页表根传参、UART、TLB 刷新与 SBI IPI/fence 路径（见 `issue.md`）。
-- 2026-01-06 01:00 前代码变更已补充：用户态 gp 初始化、exec/ucontext 与 VM 执行权限标记、
-  IPC/缺页 ABI 修复。
-- 2026-01-07 已重建 tools 与 kernel；尚未运行新的 QEMU/测试。
+- 构建可通过（GCC + workaround 组合），详见 `README-RISCV64.md`。
+- QEMU 可稳定进入 shell，并已通过交互冒烟：`echo SMOKE_OK`、`ps -aux`、`cat /proc/meminfo`。
+- 本轮已确认并修复 RV64 用户态 `memset` 递归导致的栈顶 SIGSEGV（见 `issue.md` A3 进展）。
+- #24 已缓解：in-tree binutils 增加 `R_RISCV_RELAX` 兼容补丁，`ld` 不再因 `0x33` 中断链接。
+- 仍有待闭环风险：含盘 virtio 启动链路复核、`procfs` safecopy 回退噪声（#17）、
+  GCC-only 增量构建 ABI 参数兼容性（#25）。
 
 **English**
-- Build passes with workaround flags; see `README-RISCV64.md` for exact commands.
-- QEMU boot reaches early kernel init; user space is not yet stable.
-- Key risks are in page-table root handoff, UART, TLB flush, and SBI IPI/fence paths (see `issue.md`).
-- Pre-2026-01-06 01:00 changes documented: userland gp init, exec/ucontext + VM exec flags,
-  IPC/pagefault ABI fixes.
-- Tools + kernel rebuilt on 2026-01-07; no new QEMU/test runs yet.
+- Build passes with GCC + workaround flags; see `README-RISCV64.md` for exact commands.
+- QEMU now reaches a stable shell and passes interactive smoke commands:
+  `echo SMOKE_OK`, `ps -aux`, and `cat /proc/meminfo`.
+- This cycle confirms and mitigates the RV64 userland `memset` recursion SIGSEGV signature
+  (see `issue.md` A3 update).
+- #24 is now mitigated: in-tree binutils has a compatibility patch for `R_RISCV_RELAX`,
+  and `ld` no longer aborts on relocation `0x33`.
+- Remaining open risks: with-disk virtio startup recheck, procfs safecopy retry noise (#17),
+  and GCC-only incremental ABI-flag compatibility (#25).
 
 ## Build Status / 构建状态
 
@@ -29,39 +32,44 @@
 - 基线命令：使用 GCC、禁用 LLVM/C++、放宽 `checkflist`（见 `README-RISCV64.md`）。
 - 产物：`minix/kernel/obj/kernel` 与 `obj/destdir.evbriscv64`。
 - 限制：`CHECKFLIST_FLAGS='-m -e'` 为临时绕过，需在 sets 完整后移除。
-- 补充：tools 可在修复 LLVM `ValueMap.h` 后构建；内核可用 GCC + `MAKEOBJDIRPREFIX` 重建
-  （`RISCV_ARCH_FLAGS='-march=RV64IMAFD -mcmodel=medany'`，当前工具链不接受 `-mabi=lp64d`）。
+- 工具链进展：in-tree `ld`（NetBSD binutils 2.23.2）已通过补丁兼容
+  `R_RISCV_RELAX`（见 `issue.md` #24）。
+- 新发现：显式 GCC-only 组件增量构建可能触发 `-mabi=lp64d` 参数不兼容（见 `issue.md` #25）。
 
 **English**
 - Baseline: GCC, LLVM/C++ disabled, relaxed `checkflist` (see `README-RISCV64.md`).
 - Outputs: `minix/kernel/obj/kernel` and `obj/destdir.evbriscv64`.
 - Limitation: `CHECKFLIST_FLAGS='-m -e'` is a temporary workaround until sets are complete.
-- Note: tools now build with LLVM after the `ValueMap.h` fix; kernel rebuild works with GCC +
-  `MAKEOBJDIRPREFIX` (`RISCV_ARCH_FLAGS='-march=RV64IMAFD -mcmodel=medany'`, toolchain rejects `-mabi=lp64d`).
+- Toolchain update: in-tree `ld` (NetBSD binutils 2.23.2) now accepts `R_RISCV_RELAX`
+  via a compatibility patch; see `issue.md` #24.
+- New finding: explicit GCC-only component rebuilds can hit `-mabi=lp64d` incompatibility
+  (see `issue.md` #25).
 
 ## Runtime Status / 运行状态
 
 **中文**
-- 观察到 `rv64: kernel_main` 等早期日志，但随后出现 `System reset...` 并重复 OpenSBI banner。
-- 运行时稳定性不足，用户态服务尚未可靠启动。
-- 该行为与 `issue.md` 中的 PTROOT 截断等关键问题一致。
-- 最新内核尚未重新验证运行时行为。
+- 启动链路已稳定可进入 `#` 提示符，`init` 与核心服务可完成基本握手。
+- 交互复测通过：`ps -aux` 返回进程列表；`cat /proc/meminfo` 可返回内存信息。
+- `/proc/meminfo` 路径仍可见一次可恢复 safecopy 回退（先失败后重试成功），属于已知噪声问题（#17）。
+- 含盘 virtio 启动链路仍需单独复测后才能确认 A3 全量闭环。
 
 **English**
-- Logs show early messages like `rv64: kernel_main`, then `System reset...` with repeated OpenSBI banner.
-- Runtime stability is insufficient; user space services are not reliably started.
-- This matches the PTROOT truncation and other key issues in `issue.md`.
-- Latest kernel changes have not been re-validated at runtime.
+- Boot path is stable to the `#` shell prompt; init and core services complete basic startup handshake.
+- Interactive retest passes: `ps -aux` returns process list; `cat /proc/meminfo` returns data.
+- `/proc/meminfo` still shows one recoverable safecopy fallback (fail-then-retry-success),
+  tracked as known noise in #17.
+- With-disk virtio startup path still needs dedicated revalidation to close A3 end-to-end.
 
 ## Key Issues (Snapshot) / 关键问题（摘要）
 
 **Critical / 严重**
-- None confirmed in current workspace; PTROOT 64-bit fix is in-tree but not revalidated.
+- None newly confirmed in current workspace.
 
 **Major / 重要**
-- UART deferred replies, TLB flush after leaf splits, and SBI legacy PA fixes are in-tree but need runtime validation.
-- `ld.elf_so` still missing when `MKPIC=no`, so dynamic binaries remain untested.
-- SMP core (`smp.c` + arch hooks) is still unimplemented.
+- A3: with-disk virtio startup path still needs revalidation after `memset` fix.
+- #17: recoverable safecopy fallback noise on `/proc/*` path remains.
+- #25: GCC-only incremental build path may fail on unsupported `-mabi=lp64d`.
+- #23: RV64 `vm_memset` fault-recovery capability gap remains high-priority kernel robustness work.
 
 详见 `issue.md` 的证据与修复建议 / See `issue.md` for evidence and fixes.
 
@@ -74,25 +82,30 @@
 ## Next Priorities / 下一阶段优先级
 
 **中文**
-1) 验证 UART/TLB/SBI 修复在 QEMU 下的运行时行为。
-2) 恢复动态加载器（MKPIC/MKPICLIB）并验证最小动态程序。
-3) 补齐 SMP 核心与 IPI 路径实现。
+1) 跑含盘 QEMU 轮廓，验证 `minix-service` + `virtio_blk_mmio` 路径是否已闭环。
+2) 在 clean 环境做一次从 `fetch.sh` 到 `tools/binutils` 的复验，确认 #24 补丁可重复生效。
+3) 修复 #25：统一 GCC 路径的 `-mabi` 参数能力探测与回退策略。
+4) 继续收敛 #17（统计/限流 + 负载下验证），区分噪声与真实功能缺陷。
+5) 在稳定后恢复动态装载链路（`MKPIC/MKPICLIB`）并验证最小动态程序。
 
 **English**
-1) Validate UART/TLB/SBI fixes in QEMU.
-2) Restore dynamic loader (MKPIC/MKPICLIB) and test a minimal dynamic binary.
-3) Implement SMP core and IPI paths.
+1) Run with-disk QEMU profile and revalidate `minix-service` + `virtio_blk_mmio` path.
+2) Re-run from clean `fetch.sh` to `tools/binutils` and confirm #24 patch reproducibility.
+3) Fix #25 by normalizing GCC `-mabi` probing/fallback in incremental paths.
+4) Continue closing #17 with counters/rate-limit + stress validation.
+5) Restore dynamic loader path (`MKPIC/MKPICLIB`) and test a minimal dynamic binary.
 
 ## Success Criteria / 下一里程碑判定
 
 **中文**
-- QEMU 中稳定进入用户态（无 `System reset...` 循环）。
-- 时钟中断驱动调度与时间推进。
-- UART 阻塞读可正常返回。
-- sys_vmctl PTROOT 在 >4GB 物理地址下可靠切换 SATP。
+- 无盘与含盘两种 QEMU 轮廓均可稳定进入 shell 且不出现 `minix-service` SIGSEGV。
+- `ps -aux`、`cat /proc/meminfo` 在连续回归中稳定通过。
+- 增量重建可在不替换链接器的前提下完成（不再出现 `R_RISCV_RELAX` 链接错误）。
+- `procfs` 路径 safecopy 错误噪声降到可接受水平并有计数证据。
 
 **English**
-- Stable boot to userland in QEMU without reset loops.
-- Timer IRQ drives scheduling/timekeeping.
-- UART blocking reads return correctly.
-- sys_vmctl PTROOT switches SATP reliably above 4GB physical roots.
+- Both diskless and with-disk QEMU profiles reach shell without `minix-service` SIGSEGV.
+- `ps -aux` and `cat /proc/meminfo` pass consistently across regressions.
+- Incremental rebuild works without ad-hoc linker substitution (`R_RISCV_RELAX` link failures gone),
+  and GCC-only path no longer fails on unsupported ABI flags.
+- procfs safecopy noise is reduced to an acceptable level with measurable counters.
