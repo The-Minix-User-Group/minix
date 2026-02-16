@@ -1,14 +1,41 @@
 # MINIX RISC-V Port Issues / MINIX RISC-V 移植问题清单
 
 **Date / 日期**: 2026-02-16  
-**Version / 版本**: 1.4  
+**Version / 版本**: 1.11
 **Scope / 范围**: RISC-V 64-bit port, evidence includes file/line references.
 
 本文件记录 RISC-V 64 位移植的具体问题与证据（含文件/行号），并给出修复建议。  
 This file records concrete issues in the RISC-V 64-bit port with evidence and suggested fixes.
 
-**复核说明**：2026-02-16 完成启动链路稳定化验证；QEMU 可进入交互 shell 并通过 `echo SMOKE_OK`。  
-**Review note**: 2026-02-16 validated boot-path stabilization; QEMU reaches interactive shell and passes `echo SMOKE_OK`.
+**复核说明**：2026-02-16 完成启动链路稳定化验证；QEMU 可进入交互 shell 并通过 `echo SMOKE_OK`。同日补充代码/日志复核问题。  
+**Review note**: 2026-02-16 validated boot-path stabilization; QEMU reaches interactive shell and passes `echo SMOKE_OK`. Additional code/log review findings were added the same day.
+
+**编号说明 / Numbering note**: 问题编号采用历史保留，不保证连续；已归档到 “Fixed in Current Working Tree” 的历史编号包括 `#1`, `#2`, `#3`, `#10`, `#12`。  
+Issue IDs are historically stable and intentionally non-contiguous; archived IDs moved to “Fixed in Current Working Tree” include `#1`, `#2`, `#3`, `#10`, `#12`.
+
+## Repair Priority / 修复优先级（从重到轻）
+
+- P0 / 最高优先（先修，内存安全与核心控制面稳定性）:
+  1) `#22` RS `free_slot()` endpoint unset 时越界写 `rproc_ptr[]`
+  2) `#21` RS endpoint 校验接受 task slot，导致 `rproc_ptr[]` 越界访问
+  3) `#20` RS `do_upd_ready()` 异常消息路径空指针解引用
+  4) `#18` RS `do_init_ready()` / `catch_boot_init_ready()` 异常路径空指针解引用
+  5) `#23` RISC-V `vm_memset` 无故障恢复，可能把可恢复故障升级为 kernel panic
+- P1 / 高优先（高概率影响功能正确性）:
+  1) `#16` VFS 服务端点“先写后验”可能弱化代际校验
+  2) `#17` 启动期 safecopy 噪声错误闭环（定位根因并降噪）
+  3) `A3` 含盘场景 `minix-service`/`virtio_blk_mmio` SIGSEGV
+- P2 / 中优先（功能完备性与平台能力）:
+  1) `A2` RV64 动态装载链路（`MKPIC`/`ld.elf_so`）补齐与验证
+  2) `#15` RISC-V SMP 核心实现缺失
+  3) `#13` `phys_copy` fault handler 注册缺失
+  4) `#14` DT 多段内存/保留区解析补齐
+- P3 / 低优先（可维护性与技术债）:
+  1) `#19` kernel/VM/RS 无条件调试日志收敛
+  2) `#11` `minimal_kernel` RISC-V 适配
+  3) `TD1`/`TD2`/`TD3` 技术债
+- Validation backlog / 已有代码修复待运行复验:
+  - `#4`, `#5`, `#6`, `#7`, `#8`, `#9`（建议在每轮 P0/P1 修复后都做最小 QEMU 回归）
 
 ## Active Investigation / 当前主问题跟踪
 
@@ -39,7 +66,7 @@ This file records concrete issues in the RISC-V 64-bit port with evidence and su
   - VM slaballoc assert on `ls /usr` is addressed by expanding slab size classes for RV64 message sizes. / `ls /usr` 触发的 slaballoc 断言已通过扩展 RV64 slab 大小类修复。
     Evidence: `minix/servers/vm/slaballoc.c`
 - Remaining / 保留问题:
-  - `loadramdisk` still fails when `ramimagename` is unset; kernel default is added but needs rebuild verification. / `ramimagename` 未设置时 `loadramdisk` 仍失败；内核默认值已补充但需重建验证。
+  - `loadramdisk` had failures when `ramimagename` was unset; a kernel default has been added, but this path still needs rebuild/runtime re-validation before it can be considered closed. / `ramimagename` 未设置时的 `loadramdisk` 失败已有内核默认值补丁，但在重建与运行复验完成前仍不视为闭环。
     Evidence: `minix/kernel/arch/riscv64/kernel.c`
   - `REQ_GETDENTS` may hit `sys_safecopyto` EFAULT with `CPF_TRY` grants; VFS retries and succeeds, but logs are noisy. / `REQ_GETDENTS` 在 `CPF_TRY` 下可能触发 `sys_safecopyto` EFAULT；VFS 会重试成功，但日志较噪。
     Evidence: `minix/kernel/system/do_safecopy.c`, `minix/servers/vfs/request.c`
@@ -70,9 +97,9 @@ This file records concrete issues in the RISC-V 64-bit port with evidence and su
       Evidence: `minix/servers/vfs/exec.c:306`
     4) Keep the test binary minimal (single `main`, no threads) to isolate VM/exec issues. / 测试程序保持最小化以隔离 VM/exec 问题。
 
-### A3) minix-service SIGSEGV when starting virtio_blk_mmio / 启动 virtio_blk_mmio 时 minix-service 崩溃
+### A3) minix-service SIGSEGV when starting virtio_blk_mmio (historical with-disk profile) / 启动 virtio_blk_mmio 时 minix-service 崩溃（历史含盘场景）
 - Evidence / 证据:
-  - `./minix/tests/riscv64/run_tests.sh all` (2026-01-31) fails the VirtIO block I/O smoke test; running
+  - `./minix/tests/riscv64/run_tests.sh all` (2026-01-31, with-disk profile) fails the VirtIO block I/O smoke test; running
     `/sbin/minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0` triggers SIGSEGV.  
     Logs: `/tmp/minix-riscv64-tests.log`, `/home/donz/minix/obj/test-logs/boot_test.*.log`
   - Stacktrace in QEMU output: `pc=0x3bb38 sp=0xefbffff0 ra=0x3bbf0`, VM reports `SIGSEGV ... err 0xf nopage write`.
@@ -85,6 +112,21 @@ This file records concrete issues in the RISC-V 64-bit port with evidence and su
 - Next steps / 下一步:
   - Rebuild `minix-service` with DWARF v4 or use a tool that can decode DWARF v5, then resolve `pc=0x3bb38`.
   - Add tracing around RS `RS_UP` request path in `minix/commands/minix-service/minix-service.c` and verify stack setup.
+
+### A4) virtio_blk_mmio startup failure in diskless QEMU smoke (configuration-driven) / 无盘 QEMU 冒烟中 virtio_blk_mmio 启动失败（配置驱动）
+- Evidence / 证据:
+  - `virtio-blk-mmio: device not found` appears in `/tmp/qemu-fix20.log` around line 3760.
+  - RS request failure follows: `Request 0x700 to RS failed: specified endpoint is not alive (error 215)` at `/tmp/qemu-fix20.log:3770`.
+  - rc warning emitted: `WARNING: couldn't start virtio_blk_mmio` at `/tmp/qemu-fix20.log:3785`.
+- Impact / 影响:
+  - Boot still reaches shell, but storage/virtio path is not actually validated in this smoke mode.
+  - 该失败会污染启动日志，容易与真正的服务崩溃混淆。
+- Hypothesis / 假设:
+  - The smoke run uses no extra block image (`qemu-riscv64.sh` without `-i`), so virtio block device is absent by design.
+  - 当前现象更像“配置缺设备”而非驱动立即崩溃；与 A3 的“含盘场景下 SIGSEGV”应分开跟踪。
+- Next steps / 下一步:
+  - Split smoke into diskless and with-disk profiles.
+  - For virtio validation, run QEMU with `-i <disk image>` and assert service start success before I/O tests.
 
 ## Critical / 严重
 
@@ -178,6 +220,116 @@ This file records concrete issues in the RISC-V 64-bit port with evidence and su
   - Add `minix/kernel/arch/riscv64/smp.c` with `smp_init`, `smp_ap_entry`, `smp_send_ipi`, `smp_broadcast_ipi`, `smp_ipi_handler`, `arch_send_smp_schedule_ipi`, `arch_smp_halt_cpu`. / 增加 riscv64 `smp.c` 并实现上述入口。
   - Add `minix/kernel/arch/riscv64/include/arch_smp.h` with SMP `cpuid` definition, plus per-CPU PLIC/timer init and `SIE_SSIE` enablement. / 增加 riscv64 `arch_smp.h`，定义 SMP `cpuid`，并接入每 CPU 的 PLIC/定时器初始化及 `SIE_SSIE` 使能。
 
+### 16) VFS service endpoint pre-resync may weaken endpoint validation / VFS 服务端点预同步可能弱化端点校验
+- Evidence / 证据:
+  - `map_service()` rewrites `fproc[pub_slot].fp_endpoint` before validation in `minix/servers/vfs/dmap.c:214-218`.
+  - `isokendpt_f()` validates by comparing `fproc[*proc].fp_endpoint` against the input endpoint in `minix/servers/vfs/utility.c:117`.
+  - This creates a "write-then-check" path where generation mismatch can be masked.
+- Impact / 影响:
+  - Endpoint generation inconsistencies may be accepted too early.
+  - 可能降低 VFS 对服务端点代际错误的检测能力，增加隐性状态污染风险。
+- Suggested fix / 修复建议:
+  - Validate endpoint/generation first (without mutating `fproc`), then apply resync only when explicitly proven safe.
+  - Add a guarded path (and log) for legitimate RS republish cases.
+
+### 18) RS init-ready path may dereference null service slot on unexpected RS_INIT / RS 初始化就绪路径在异常 RS_INIT 下可能空指针解引用
+- Evidence / 证据:
+  - `do_init_ready()` dereferences `rproc_ptr[who_p]` without null check:
+    `minix/servers/rs/request.c:474-476`.
+  - `catch_boot_init_ready()` also dereferences `rproc_ptr[_ENDPOINT_P(m.m_source)]` without validating non-null:
+    `minix/servers/rs/main.c:812`, `minix/servers/rs/main.c:835`.
+  - `rs_isokendpt()` only validates numeric range, not slot binding:
+    `minix/servers/rs/utility.c:352-358`.
+- Impact / 影响:
+  - A malformed or unexpected `RS_INIT` message can crash RS (null dereference), which is high impact because RS is core service management infrastructure.
+  - 若触发，可能导致服务管理中枢异常并引发系统级连锁故障。
+- Suggested fix / 修复建议:
+  - Add `rp == NULL` checks before dereference in both paths and return `EINVAL`/ignore unexpected senders.
+  - In boot catch path, validate source endpoint against expected initializing set before accepting `RS_INIT`.
+- Update / 进展:
+  - Added strict source validation via `rs_isokservice()` before dereferencing in both `do_init_ready()` and `catch_boot_init_ready()`, with explicit invalid-source handling. Runtime/QEMU validation is still required.
+    已在 `do_init_ready()` 与 `catch_boot_init_ready()` 中通过 `rs_isokservice()` 先做严格来源校验，再解引用；异常来源路径已显式处理。仍需运行时/QEMU 复验。
+    Evidence: `minix/servers/rs/request.c`, `minix/servers/rs/main.c`, `minix/servers/rs/utility.c`
+
+### 20) RS update-ready path may dereference null slot on unexpected RS_LU_PREPARE / RS 更新就绪路径在异常 RS_LU_PREPARE 下可能空指针解引用
+- Evidence / 证据:
+  - `do_upd_ready()` reads `rproc_ptr[_ENDPOINT_P(m_source)]` and then dereferences `rp` without null guard:
+    `minix/servers/rs/request.c:899-901`, `minix/servers/rs/request.c:911`.
+  - The unexpected-message branch logs `srv_to_string(rp)` as well:
+    `minix/servers/rs/request.c:905-909` (unsafe when `rp == NULL`).
+- Impact / 影响:
+  - A malformed/stale `RS_LU_PREPARE` message can crash RS during live-update coordination.
+  - 该路径属于核心更新控制面，触发后会中断服务更新流程并可能导致系统管理失稳。
+- Suggested fix / 修复建议:
+  - Validate `who_p` binding and `rp != NULL` before any dereference.
+  - Reject senders that do not match `rupdate.curr_rpupd->rp` with `EINVAL` and keep RS running.
+- Update / 进展:
+  - `do_upd_ready()` now validates service endpoint binding using `rs_isokservice()` before touching `rproc_ptr[]`/`rp`, so malformed or stale senders are rejected safely. Runtime/QEMU validation is still required.
+    `do_upd_ready()` 已在访问 `rproc_ptr[]`/`rp` 前使用 `rs_isokservice()` 校验端点绑定，畸形或陈旧来源会被安全拒绝。仍需运行时/QEMU 复验。
+    Evidence: `minix/servers/rs/request.c`, `minix/servers/rs/utility.c`
+
+### 21) RS endpoint validation accepts task numbers, enabling out-of-bounds `rproc_ptr[]` access / RS 端点校验接受任务号，可能导致 `rproc_ptr[]` 越界访问
+- Evidence / 证据:
+  - `rs_isokendpt()` allows endpoint slots in `[-NR_TASKS, NR_PROCS)`:
+    `minix/servers/rs/utility.c:352-358`.
+  - Callers index `rproc_ptr[proc]` directly after this check:
+    `minix/servers/rs/main.c:64-66`, `minix/servers/rs/main.c:86-87`,
+    `minix/servers/rs/main.c:655-661`.
+  - `rproc_ptr` is sized as `NR_PROCS` only:
+    `minix/servers/rs/glo.h:35`.
+- Impact / 影响:
+  - Task endpoints (negative proc slots) can drive negative indexing into `rproc_ptr[]`, causing out-of-bounds read/write and RS state corruption.
+  - 在异常通知/信号路径上属于高危内存安全问题。
+- Suggested fix / 修复建议:
+  - Introduce a strict service-endpoint validator (`0 <= proc < NR_PROCS`) for all `rproc_ptr[]` indexing paths.
+  - Keep task-range acceptance only in paths that never index process-slot arrays.
+- Update / 进展:
+  - Introduced `rs_isokservice()` (`0 <= proc < NR_PROCS`, mapping exists) and switched `rproc_ptr[]` indexing paths in RS main/signal/init/update handling to this strict validator, preventing negative-index task-slot access. Endpoint-generation hard match is intentionally not enforced in boot catch path due startup endpoint encoding differences. Runtime/QEMU validation is still required.
+    新增 `rs_isokservice()`（要求 `0 <= proc < NR_PROCS` 且映射存在），并将 RS main/signal/init/update 中访问 `rproc_ptr[]` 的路径切换为严格校验，阻断 task slot 负索引。考虑启动期 endpoint 编码差异，boot catch 路径未强制端点代际硬匹配。仍需运行时/QEMU 复验。
+    Evidence: `minix/servers/rs/utility.c`, `minix/servers/rs/main.c`, `minix/servers/rs/request.c`, `minix/servers/rs/proto.h`
+
+### 22) RS can write out of bounds in `free_slot()` when endpoint is unset (-1) / `free_slot()` 在端点未设置(-1)时可能越界写
+- Evidence / 证据:
+  - Clone slots are created with an unset endpoint:
+    `minix/servers/rs/manager.c:1831` (`clone_rpub->endpoint = -1`).
+  - `create_service()` has multiple early-failure paths calling `free_slot()` before assigning a child endpoint:
+    `minix/servers/rs/manager.c:550`, `minix/servers/rs/manager.c:558`,
+    `minix/servers/rs/manager.c:566`, `minix/servers/rs/manager.c:579`.
+  - `free_slot()` unconditionally does `rproc_ptr[_ENDPOINT_P(rpub->endpoint)] = NULL`:
+    `minix/servers/rs/manager.c:2108`.
+- Impact / 影响:
+  - When `endpoint == -1`, `_ENDPOINT_P(-1) == -1`, producing an out-of-bounds write to `rproc_ptr[]`.
+  - 在资源紧张（如 `srv_fork` 失败）时可触发，破坏 RS 内部映射并导致后续不可预测故障。
+- Suggested fix / 修复建议:
+  - In `free_slot()`, validate endpoint slot bounds before touching `rproc_ptr[]`.
+  - Initialize/normalize unset endpoints to `NONE` and treat them as “no mapping to clear”.
+  - Add assertions/tests covering clone->create failure paths.
+- Update / 进展:
+  - `free_slot()` now bounds-checks endpoint-derived slots, clears mapping only when ownership matches (`rproc_ptr[slot] == rp`), and normalizes released endpoints to `NONE`, eliminating the `endpoint=-1` write-underflow path. Runtime/QEMU validation is still required.
+    `free_slot()` 现已对 endpoint 槽位做边界校验，仅在映射归属匹配（`rproc_ptr[slot] == rp`）时清理，并将释放后的 endpoint 归一为 `NONE`，消除 `endpoint=-1` 的下溢写路径。仍需运行时/QEMU 复验。
+    Evidence: `minix/servers/rs/manager.c`
+
+### 23) RISC-V `vm_memset` lacks fault-recovery path and may panic kernel on user-memory write faults / RISC-V `vm_memset` 缺少故障恢复路径，用户内存写故障可能直接触发内核 panic
+- Evidence / 证据:
+  - RISC-V `vm_memset` performs direct `phys_memset` with no fault return channel:
+    `minix/kernel/arch/riscv64/memory.c:452`.
+  - RISC-V declares `phys_memset` as `void`, unlike i386/ARM fault-reporting signatures:
+    `minix/kernel/arch/riscv64/include/arch_proto.h:100`,
+    `minix/kernel/arch/i386/include/arch_proto.h:104`,
+    `minix/kernel/arch/earm/include/arch_proto.h:17`.
+  - Page-fault recovery in RISC-V exception path only checks `phys_copy` window, not `memset`:
+    `minix/kernel/arch/riscv64/exception.c:252-255`.
+  - i386/ARM explicitly support `memset_fault` recovery points:
+    `minix/kernel/arch/i386/exception.c:66-73`,
+    `minix/kernel/arch/earm/exception.c:49-56`.
+- Impact / 影响:
+  - A write fault during kernel-assisted memset to user mappings (e.g., COW/protection transition windows) can escalate to kernel panic instead of VM-assisted suspend/retry.
+  - 该问题直接影响内核健壮性，是高优先级稳定性风险。
+- Suggested fix / 修复建议:
+  - Add fault-aware RISC-V `phys_memset` semantics (fault address/status return or dedicated fault labels).
+  - Extend RISC-V exception fault window handling to include memset recovery, matching i386/ARM behavior.
+  - Ensure `vm_memset` can return `VMSUSPEND` on recoverable write faults.
+
 ## Moderate / 中等
 
 ### 11) Minimal kernel build is not RISC-V-ready / minimal_kernel 未支持 RISC-V
@@ -206,6 +358,35 @@ This file records concrete issues in the RISC-V 64-bit port with evidence and su
 - Suggested fix / 修复建议:
   - Extend FDT parsing to handle reserved regions and multiple memory ranges, then plumb into `add_memmap`. / 扩展 FDT 解析以处理保留区与多段内存，并接入 `add_memmap`。
 
+### 17) Repeated safecopy errors during boot are still noisy and unexplained / 启动期重复 safecopy 错误仍有噪声且原因未闭环
+- Evidence / 证据:
+  - `/tmp/qemu-fix20.log:415` and `/tmp/qemu-fix20.log:1040` show `kcall safecopy err=...fc1c`.
+  - `/tmp/qemu-fix20.log:4159-4160` shows `kcall safecopy err=...fff2` and `do_safecopy_to: err -14 caller=10`.
+  - System still continues to shell after these messages.
+- Impact / 影响:
+  - Currently appears recoverable, but it adds noise and may hide real regressions.
+  - 若错误路径扩大，可能在高负载或不同镜像下演变为实际功能故障。
+- Suggested fix / 修复建议:
+  - Correlate each safecopy failure with request type/grant lifecycle.
+  - Add focused tracing around MFS/VFS grant usage for the failing offsets and gids.
+
+### 19) Excessive unconditional debug logging in kernel/VM/RS obscures real faults / kernel/VM/RS 无条件调试日志过多，掩盖真实故障
+- Evidence / 证据:
+  - Kernel has pervasive unconditional `direct_print*` tracing in hot paths
+    (e.g. `minix/kernel/main.c`, `minix/kernel/proc.c`, `minix/kernel/system.c`,
+    `minix/kernel/arch/riscv64/arch_do_vmctl.c`).
+  - VM emits runtime traces such as `VM: recv ...` and `VM: pt_bind set_addrspace ...` in normal flow:
+    `minix/servers/vm/main.c:136-145`, `minix/servers/vm/pagetable.c:2216`.
+  - RS boot handshake prints `RS: wait init ready ...`/`RS: got init ready ...`:
+    `minix/servers/rs/main.c:797-823`.
+  - Corresponding QEMU logs (`/tmp/qemu-fix20.log`) are heavily saturated with trace lines.
+- Impact / 影响:
+  - Log saturation makes real regressions harder to detect and can perturb timing-sensitive behavior.
+  - 长期会降低回归测试可读性与排障效率。
+- Suggested fix / 修复建议:
+  - Gate noisy traces behind build-time/runtime debug flags (or strict rate limits).
+  - Keep only milestone-level boot markers enabled by default.
+
 ## Technical Debt / 技术债务
 
 ### TD1) Static RISC-V links require per-binary __global_pointer$ workaround / 静态链接需要每个二进制打补丁
@@ -217,7 +398,7 @@ This file records concrete issues in the RISC-V 64-bit port with evidence and su
 - Impact / 影响:
   - Workaround is widespread but still per-binary; new binaries can miss it. / 仍需逐个二进制打补丁，新增组件易遗漏。
 - Suggested fix / 修复建议:
-- Define `__global_pointer$` in crt0 or linker script globally, then remove per-binary gp.c/LDFLAGS. / 在 crt0 或链接脚本中全局定义 `__global_pointer$`，再移除各二进制 gp.c/LDFLAGS。
+  - Define `__global_pointer$` in crt0 or linker script globally, then remove per-binary gp.c/LDFLAGS. / 在 crt0 或链接脚本中全局定义 `__global_pointer$`，再移除各二进制 gp.c/LDFLAGS。
 
 ### TD2) SMP support is scaffolded but not fully tested / SMP 支持尚未完整验证
 - Evidence / 证据:
@@ -253,6 +434,9 @@ This file records concrete issues in the RISC-V 64-bit port with evidence and su
   - `docs/liteos-emulation-architecture.md`
 
 ## Fixed in Current Working Tree / 已在当前工作区修复
+
+说明 / Note: 本节记录“已合入代码但可能仍待运行时复验”的归档项，并保留原始问题编号以便追溯。  
+This section archives items with code-level fixes landed (some may still require runtime re-validation), keeping original IDs for traceability.
 
 - `minimal_kernel/proto.h:175` uses `reg_t` for `arch_set_secondary_ipc_return` to avoid RV64 truncation
   (matches `minix/kernel/proto.h` and arch implementations).  

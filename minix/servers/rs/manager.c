@@ -2090,6 +2090,7 @@ struct rproc *rp;
 {
 /* Free a system service slot. */
   struct rprocpub *rpub;
+  int proc;
 
   rpub = rp->r_pub;
 
@@ -2105,7 +2106,12 @@ struct rproc *rp;
   rp->r_flags = 0;
   rp->r_pid = -1;
   rpub->in_use = FALSE;
-  rproc_ptr[_ENDPOINT_P(rpub->endpoint)] = NULL;
+  if (rs_isokendpt(rpub->endpoint, &proc) == OK &&
+      proc >= 0 && proc < NR_PROCS &&
+      rproc_ptr[proc] == rp) {
+      rproc_ptr[proc] = NULL;
+  }
+  rpub->endpoint = NONE;
 }
 
 
@@ -2329,4 +2335,3 @@ struct priv *privp;
 		}
 	}
 }
-
