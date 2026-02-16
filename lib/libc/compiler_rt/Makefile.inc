@@ -68,6 +68,12 @@ GENERIC_SRCS+= \
 	trunctfsf2.c
 .endif
 
+.if ${LIBC_MACHINE_CPU} == "riscv" && ${MKSOFTFLOAT} == "no"
+GENERIC_SRCS+= \
+	divdf3.c \
+	divsf3.c
+.endif
+
 GENERIC_SRCS+= \
 	absvsi2.c \
 	absvti2.c \
