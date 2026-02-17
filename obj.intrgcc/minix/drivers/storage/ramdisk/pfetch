@@ -1,41 +1,21 @@
 #!/bin/sh
 #
-# Minimal pfetch for MINIX ramdisk.
+# Compatibility wrapper for neofetch.
 #
 
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 
-arch="unknown"
-rootdev="ram"
-memline="unavailable (/proc not mounted)"
-srv_count="n/a"
-
-if arch_val="$(sysenv arch 2>/dev/null)"; then
-	arch="$arch_val"
-elif arch_val="$(sysenv machine 2>/dev/null)"; then
-	arch="$arch_val"
+if [ -x /bin/neofetch ]; then
+	exec /bin/neofetch "$@"
 fi
 
-if rootdev_val="$(sysenv rootdevname 2>/dev/null)"; then
-	rootdev="/dev/$rootdev_val"
+if command -v neofetch >/dev/null 2>&1; then
+	exec neofetch "$@"
 fi
 
-if [ -r /proc/meminfo ]; then
-	if ! IFS= read -r memline < /proc/meminfo; then
-		memline="unavailable"
-	fi
+if [ -x "$(dirname "$0")/neofetch" ]; then
+	exec "$(dirname "$0")/neofetch" "$@"
 fi
 
-echo "      .--."
-echo "     |o_o |   MINIX pfetch"
-echo "     |:_/ |"
-echo "    //   \\ \\"
-echo "   (|     | )"
-echo "  /'\\_   _/'\\"
-echo "  \\___)=(___/"
-echo
-echo "OS:       MINIX 3"
-echo "Arch:     $arch"
-echo "Rootdev:  $rootdev"
-echo "Services: $srv_count"
-echo "Mem(raw): $memline"
+echo "pfetch: /bin/neofetch not found" >&2
+exit 127

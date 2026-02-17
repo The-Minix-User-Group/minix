@@ -8,6 +8,7 @@ d--755 0 0
   ls ---755 0 0 ls
   ps ---755 0 0 ps
   uname ---755 0 0 uname
+  neofetch ---755 0 0 neofetch
   pfetch ---755 0 0 pfetch
   fsck_mfs ---755 0 0 fsck_mfs
   mount ---755 0 0 mount
@@ -427,6 +428,7 @@ $
   spwd.db ---600 0 0 etc/spwd.db
   master.passwd ---600 0 0 etc/master.passwd
   rc ---755 0 0 rc
+  build-id ---644 0 0 etc/build-id
   ttys ---644 0 0 etc/ttys
  $
 $

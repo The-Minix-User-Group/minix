@@ -11,6 +11,7 @@ d--755 0 0
 		ls ---755 0 0 ls
 		ps ---755 0 0 ps
 		uname ---755 0 0 uname
+		neofetch ---755 0 0 neofetch
 		pfetch ---755 0 0 pfetch
 #if RAMDISK_SMALL == 1
 		fsck_mfs ---755 0 0 fsck_mfs
