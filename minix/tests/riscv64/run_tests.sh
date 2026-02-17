@@ -199,10 +199,38 @@ run_kernel_tests() {
         fi
     fi
     if [ "$TEST_BIN_READY" -eq 1 ] && [ -n "$NBMAKE" ]; then
-        TEST_OBJ_DIR="$MINIX_ROOT/minix/tests/riscv64/obj"
-        mkdir -p "$TEST_OBJ_DIR"
-        if cp "$TEST_BIN" "$TEST_OBJ_DIR/test_virtio_blk_mmio"; then
-            chmod 755 "$TEST_OBJ_DIR/test_virtio_blk_mmio" 2>/dev/null || true
+        RAMDISK_OBJDIR="$("$NBMAKE" -C "$MINIX_ROOT/minix/drivers/storage/ramdisk" -V .OBJDIR 2>/dev/null || true)"
+        STAGED_TEST_BIN=""
+
+        if [ -n "$RAMDISK_OBJDIR" ]; then
+            case "$RAMDISK_OBJDIR" in
+            */minix/drivers/storage/ramdisk/obj)
+                RAMDISK_PROGROOT="${RAMDISK_OBJDIR%/minix/drivers/storage/ramdisk/obj}"
+                RAMDISK_PROGSUFFIX="/obj"
+                ;;
+            */minix/drivers/storage/ramdisk)
+                RAMDISK_PROGROOT="${RAMDISK_OBJDIR%/minix/drivers/storage/ramdisk}"
+                RAMDISK_PROGSUFFIX=""
+                ;;
+            *)
+                RAMDISK_PROGROOT=""
+                RAMDISK_PROGSUFFIX=""
+                ;;
+            esac
+            if [ -n "$RAMDISK_PROGROOT" ]; then
+                STAGED_TEST_BIN="$RAMDISK_PROGROOT/minix/tests/riscv64${RAMDISK_PROGSUFFIX}/test_virtio_blk_mmio"
+            fi
+        fi
+
+        # Fallback for non-standard object layouts.
+        if [ -z "$STAGED_TEST_BIN" ]; then
+            STAGED_TEST_BIN="$MINIX_ROOT/minix/tests/riscv64/obj/test_virtio_blk_mmio"
+        fi
+
+        mkdir -p "$(dirname "$STAGED_TEST_BIN")"
+        if cp "$TEST_BIN" "$STAGED_TEST_BIN"; then
+            chmod 755 "$STAGED_TEST_BIN" 2>/dev/null || true
+            log_info "Staged test binary: $STAGED_TEST_BIN"
         else
             log_info "Failed to stage test binary for ramdisk, will fall back to dd/cmp if available"
         fi

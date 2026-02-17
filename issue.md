@@ -764,6 +764,50 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
     已在当前工作树修复并复验通过；日志目录：
     `/tmp/minix-smoke-gate-20260217-070246`。
 
+### 33) `run_tests.sh all` VirtIO block smoke can false-fail due to test binary staging path mismatch / `run_tests.sh all` 的 VirtIO 冒烟可能因测试二进制暂存路径不一致而误报失败
+- Evidence / 证据:
+  - 2026-02-17 full run (`KERNEL=obj.intrgcc/.../kernel`, `DESTDIR=obj.intrgcc/destdir.evbriscv64`) ends with `Passed: 20, Failed: 1, Skipped: 1`; the only failure is `VirtIO block I/O smoke`.
+    Log: `/tmp/riscv64-full-test-20260217-114527.log`
+  - Ramdisk rebuild step fails with:
+    `nbmake: don't know how to make /home/donz/minix/obj.intrgcc/minix/tests/riscv64/test_virtio_blk_mmio`.
+    Log line: `/tmp/riscv64-full-test-20260217-114527.log:44`
+  - Script stages binary to:
+    `minix/tests/riscv64/obj/test_virtio_blk_mmio`
+    but ramdisk build rule expects:
+    `${PROGROOT}/minix/tests/riscv64/test_virtio_blk_mmio` (no `/obj` suffix in this out-of-tree layout).
+    Evidence:
+    `minix/tests/riscv64/run_tests.sh:202-205`,
+    `minix/drivers/storage/ramdisk/Makefile:225`
+  - In-guest probe then reports `/bin/test_virtio_blk_mmio: not found` (`RC=127`), causing smoke fallback to fail.
+    Log lines: `/tmp/riscv64-full-test-20260217-114527.log:49-65`
+- Impact / 影响:
+  - Produces a deterministic false-negative in `run_tests.sh all` even when boot/runtime gate passes.
+  - 会让完整测试结果出现“单点假失败”，降低回归门禁可信度。
+- Suggested fix / 修复建议:
+  - Align staging path with ramdisk dependency path (write to `${MINIX_ROOT}/obj.intrgcc/minix/tests/riscv64/test_virtio_blk_mmio`, or compute from `PROGROOT/PROGSUFFIX`).
+  - Alternatively build the test via `nbmake -C minix/tests/riscv64 test_virtio_blk_mmio` and use that artifact directly before rebuilding ramdisk.
+- Priority assessment / 优先级评估:
+  - `P2` (test-harness reliability): not a kernel/runtime crash, but blocks “full green” and can mask real regressions by introducing harness noise.
+- Update / 进展:
+  - `minix/tests/riscv64/run_tests.sh` now computes the staging target from ramdisk
+    `OBJDIR`/`PROGROOT`/`PROGSUFFIX` layout, so `test_virtio_blk_mmio` is copied to the
+    exact path expected by ramdisk dependencies in both legacy `obj` and `obj.intrgcc`.
+  - `minix/tests/riscv64/qemu_io_smoke.py` was hardened for current RISC-V bring-up noise:
+    short per-step marker commands (avoid long-line truncation), tolerant driver-up probing
+    with `/dev/c0d0` node validation, and a block-mode dd fallback that avoids creating
+    temporary files on inode-constrained boot ramdisk.
+  - 2026-02-17 validation in explicit `obj.intrgcc` environment:
+    `KERNEL=obj.intrgcc/minix/kernel/kernel DESTDIR=obj.intrgcc/destdir.evbriscv64 NBMAKE=obj.intrgcc/.../nbmake-evbriscv64 ./minix/tests/riscv64/run_tests.sh kernel`
+    passed with summary `Passed: 3, Failed: 0, Skipped: 1`.
+    Log: `/tmp/riscv64-kernel-objintrgcc-20260217-134559.log`
+  - 2026-02-17 full suite recheck in explicit `obj.intrgcc` environment:
+    `TOOLDIR=obj.intrgcc/tooldir.* KERNEL=obj.intrgcc/minix/kernel/kernel DESTDIR=obj.intrgcc/destdir.evbriscv64 NBMAKE=obj.intrgcc/.../nbmake-evbriscv64 ./minix/tests/riscv64/run_tests.sh all`
+    passed with summary `Passed: 21, Failed: 0, Skipped: 1`, including
+    `VirtIO block I/O smoke` and `Multi-run smoke gate` (`Passed: 4, Failed: 0`).
+    Log: `/tmp/riscv64-all-objintrgcc-20260217-135034.log`
+- Status / 状态:
+  - Fixed in working tree and validated on `run_tests.sh kernel` + `run_tests.sh all` (`obj.intrgcc` path).
+
 ### 17) Repeated safecopy errors during boot are still noisy and unexplained / 启动期重复 safecopy 错误仍有噪声且原因未闭环
 - Evidence / 证据:
   - `/tmp/qemu-fix20.log:415` and `/tmp/qemu-fix20.log:1040` show `kcall safecopy err=...fc1c`.
