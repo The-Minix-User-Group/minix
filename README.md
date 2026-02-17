@@ -4,23 +4,26 @@ This repository contains the full MINIX 3 source tree plus an active RISC-V 64-b
 (evbriscv64) port targeting the QEMU virt platform.
 本仓库包含完整的 MINIX 3 源码树，以及面向 QEMU virt 平台的 RISC-V 64 位移植版本。
 
-**Documentation Version / 文档版本**: 1.2 (2026-01-07)
+**Documentation Version / 文档版本**: 1.3 (2026-02-17)
 
-## Current Status / 当前状态（as of 2026-01-07 / 截至 2026-01-07）
+## Current Status / 当前状态（as of 2026-02-17 / 截至 2026-02-17）
 
-- Build: passes with workaround flags; exact commands are in `README-RISCV64.md`.
-  构建：使用绕过项后可通过，具体命令见 `README-RISCV64.md`。
-- Runtime: kernel reaches early init; user space is not yet stable; see `RISC64-STATUS.md`.
-  运行：内核可进入早期初始化，用户态尚不稳定，详见 `RISC64-STATUS.md`。
+- Build: passes on the `obj.intrgcc` profile; exact baseline commands are in `README-RISCV64.md`.
+  构建：`obj.intrgcc` 轮廓可通过，完整基线命令见 `README-RISCV64.md`。
+- Runtime: QEMU reaches stable shell on `evbriscv64`; see `RISC64-STATUS.md`.
+  运行：`evbriscv64` 在 QEMU 下可稳定进入 shell，详见 `RISC64-STATUS.md`。
+- Version: system major version is `Minix Cat 4.0.0`.
+  版本：系统大版本已为 `Minix Cat 4.0.0`。
+- Memory probe fix: RV64 FDT boot-pointer bridge is in place; boot log shows
+  `Memory: 0x80000000 - 0x90000000` and `neofetch` reports full-range `Mem(raw)`.
+  内存识别修复：RV64 FDT 启动指针桥接已合入；启动日志恢复
+  `Memory: 0x80000000 - 0x90000000`，`neofetch` 的 `Mem(raw)` 也恢复到完整区间。
+- Latest regression: `./minix/tests/riscv64/run_tests.sh all` result
+  `Passed: 21, Failed: 0, Skipped: 1` (SMP still marked not implemented).
+  最新回归：`./minix/tests/riscv64/run_tests.sh all` 结果为
+  `Passed: 21, Failed: 0, Skipped: 1`（SMP 仍标注为未实现）。
 - Risk tracking: code-review issues with file/line evidence are in `issue.md`.
   风险跟踪：带文件/行号证据的评审问题见 `issue.md`。
-- Pre-2026-01-06 01:00 changes: userland gp init (crt0 + gp.c), exec/ucontext +
-  VM exec flags, IPC/pagefault ABI fixes (64-bit addr, senda arg order).
-  2026-01-06 01:00 前变更：用户态 gp 初始化（crt0 + gp.c）、exec/ucontext 与 VM
-  执行权限标记、IPC/缺页 ABI 修复（64 位地址、senda 参数顺序）。
-- Status refresh: doc update after reviewing pre-2026-01-06 01:00 changes; no new
-  build/test run since 2026-01-06.
-  状态更新：已根据 2026-01-06 01:00 前代码变更补充文档，自 2026-01-06 起未重新构建或测试。
 
 ## Quick Links / 快速链接
 
@@ -61,7 +64,7 @@ MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
 ## Run in QEMU / QEMU 运行
 
 ```bash
-./minix/scripts/qemu-riscv64.sh -k minix/kernel/obj/kernel -B obj/destdir.evbriscv64
+./minix/scripts/qemu-riscv64.sh -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64
 ```
 
 ## Tests / 测试
