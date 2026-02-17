@@ -2,7 +2,7 @@
 #define _CONFIG_H
 
 /* Minix release and version numbers. */
-#define OS_NAME "Minix"
+#define OS_NAME "Minix Cat"
 #define OS_RELEASE "3.4.0"	/* 3.m.p */
 #define OS_REV 304000000	/* see NetBSD sys/param.h: 3mm00pp00 */
 #define OS_CONFIG "GENERIC"
