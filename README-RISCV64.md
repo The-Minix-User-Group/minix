@@ -432,8 +432,16 @@ python3 ./minix/tests/riscv64/safecopy_triage.py /tmp/qemu-smoke.log
 - `multi_smoke_gate.sh` 要求每轮满足：
   shell 可达、无 fatal 签名、`safecopy_triage` 不判定为潜在一致性问题；
   带盘轮次还要求 `virtio-blk-mmio: initialized`，且不能出现历史启动失败签名。
+  同时默认执行运行时命令探针（`qemu_runtime_probe.py`），要求
+  `cat /proc/meminfo`、`ps -aux`、`minix-service sysctl srv_status` 返回成功；
+  带盘轮次还需 `/dev/c0d0` 存在。
+  Runtime command probe is enabled by default and requires
+  `cat /proc/meminfo`, `ps -aux`, `minix-service sysctl srv_status` to succeed;
+  with-disk rounds additionally require `/dev/c0d0`.
   默认行为为“每轮独立带盘镜像”（例如 `...round1.img`、`...round2.img`）；
   如需跨轮复用单一镜像，显式传 `--reuse-disk`。
+  如需临时关闭运行时探针，使用 `--no-runtime-probe`；
+  可通过 `--runtime-timeout` / `--runtime-cmd-timeout` 调整探针超时。
 - `repro_build_gate.sh` 执行受控参数的 `tools -> distribution -> multi_smoke_gate`，
   并检查 `external/gpl3/binutils/patches/0011-riscv-relax-compat.patch`
   为 tracked 文件，用于避免“手工补丁/手工拷贝产物”依赖。

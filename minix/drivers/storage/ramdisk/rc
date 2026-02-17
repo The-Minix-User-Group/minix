@@ -49,10 +49,28 @@ then	echo Starting the mmc driver
 	minix-service -c up /service/mmc -dev /dev/c0d0
 fi
 
+virtio_blk_mmio=auto
+if sysenv virtio_blk_mmio >/dev/null 2>&1
+then	virtio_blk_mmio=`sysenv virtio_blk_mmio`
+fi
+
 if [ -x /service/virtio_blk_mmio ]
-then	echo Starting virtio_blk_mmio
-	minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0 || \
-		echo "WARNING: couldn't start virtio_blk_mmio"
+then
+	case "$virtio_blk_mmio" in
+	yes)
+		echo Starting virtio_blk_mmio
+		minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0 || \
+			echo "WARNING: couldn't start virtio_blk_mmio"
+		;;
+	no)
+		echo "Skipping virtio_blk_mmio (virtio_blk_mmio=no)"
+		;;
+	*)
+		# auto: optional startup; suppress expected no-device noise
+		minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0 \
+			2>/dev/null || :
+		;;
+	esac
 fi
 
 # Load ProcFS from the ramdisk to minimize the chance of a desync with the boot

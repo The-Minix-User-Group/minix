@@ -1,7 +1,7 @@
 # RISC-V MINIX Kernel Build Log / RISC-V MINIX 内核构建日志
 
-**Last updated / 最后更新**: 2026-02-16
-**Version / 版本**: 1.7
+**Last updated / 最后更新**: 2026-02-17
+**Version / 版本**: 1.8
 **Purpose / 用途**: Append-only record of build commands and outcomes. / 记录构建命令与结果（追加式）。
 
 ## Log Entries / 日志条目
@@ -339,6 +339,58 @@ timeout 45 ./minix/scripts/qemu-riscv64.sh \
 **Notes / 备注**:
 - The QEMU run was bounded by `timeout`; termination by SIGTERM at timeout boundary is expected
   for log-capture runs and does not indicate runtime crash.
+
+### Entry 17 — Strict Runtime-Aware Smoke Gate Hardening (2026-02-17) / 严格运行时感知 smoke 门禁加固
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Profile / 轮廓**: `obj.intrgcc`
+
+**Goal / 目标**:
+- Raise smoke rigor from boot-only signal to boot + runtime signal.
+- Make each round verify command-level usability in guest userland.
+
+**Code updates / 代码更新**:
+- Added runtime probe runner:
+  `minix/tests/riscv64/qemu_runtime_probe.py`.
+- Integrated runtime probe into multi-run gate with default-on behavior:
+  `minix/tests/riscv64/multi_smoke_gate.sh`.
+- Added probe controls:
+  `--runtime-probe` / `--no-runtime-probe`,
+  `--runtime-timeout`, `--runtime-cmd-timeout`.
+- Fixed gate reporting bug on runtime probe failure branch (preserve non-zero probe RC).
+
+**Commands executed / 实际执行命令**:
+```bash
+# 1) syntax and bytecode checks
+bash -n minix/tests/riscv64/multi_smoke_gate.sh
+python3 -m py_compile minix/tests/riscv64/qemu_runtime_probe.py
+
+# 2) targeted with-disk runtime probe check
+tmpimg=/tmp/minix-runtime-probe-req2.$$.img
+truncate -s 128M "$tmpimg"
+python3 minix/tests/riscv64/qemu_runtime_probe.py \
+  --qemu-script ./minix/scripts/qemu-riscv64.sh \
+  --kernel ./obj.intrgcc/minix/kernel/kernel \
+  --destdir ./obj.intrgcc/destdir.evbriscv64 \
+  --disk "$tmpimg" --require-disk-node \
+  --timeout 70 --cmd-timeout 35
+rm -f "$tmpimg"
+
+# 3) strict multi-run gate (diskless + with-disk)
+./minix/tests/riscv64/multi_smoke_gate.sh \
+  --rounds 1 --timeout 70 \
+  --runtime-timeout 70 --runtime-cmd-timeout 35
+```
+
+**Observed result / 观察结果**:
+- Runtime probe now validates:
+  `cat /proc/meminfo`, `ps -aux`, `minix-service sysctl srv_status`,
+  and `/dev/c0d0` existence for with-disk rounds.
+- Strict gate run passes end-to-end with summary:
+  `Passed: 2`, `Failed: 0`, `Runtime passed: 2`, `Runtime failed: 0`.
+
+**Evidence / 证据**:
+- `/tmp/minix-smoke-gate-20260217-070246`
 
 ### Entry 16 — RS Leak-Path Closure + Gate Hardening Follow-up (2026-02-16) / RS 泄漏路径收敛 + 门禁加固续验
 **Workspace / 工作区**: `/home/donz/minix`  

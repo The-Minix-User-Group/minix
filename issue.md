@@ -1,7 +1,7 @@
 # MINIX RISC-V Port Issues / MINIX RISC-V 移植问题清单
 
 **Date / 日期**: 2026-02-16  
-**Version / 版本**: 1.23
+**Version / 版本**: 1.25
 **Scope / 范围**: RISC-V 64-bit port, evidence includes file/line references.
 
 本文件记录 RISC-V 64 位移植的具体问题与证据（含文件/行号），并给出修复建议。  
@@ -30,6 +30,7 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   5) `[DONE]` `#26` RS `do_up`/`do_update` 失败路径未回收 slot 资源，`RSS_COPY` 可触发可重复内存泄漏
   6) `[DONE]` `#28` RS `init_state_data` 在多个错误出口缺少内存回收
   7) `[DONE]` `#29` safecopy 首错分类规则过宽，存在门禁假阴性风险
+  8) `[DONE]` `#32` multi-smoke 缺少运行时命令探针，易漏报“能启动但功能退化”
 - P2 / 中优先（功能完备性与平台能力）:
   1) `A2` RV64 动态装载链路（`MKPIC`/`ld.elf_so`）补齐与验证
   2) `#15` RISC-V SMP 核心实现缺失
@@ -699,6 +700,52 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
     --smoke-rounds 1 --smoke-timeout 45 --without-disk`
     亦通过（`/tmp/minix-smoke-gate-20260217-000150`）。
 
+### 32) multi-smoke gate lacks runtime command probes and can miss “boot-only pass” regressions / multi-smoke 门禁缺少运行时命令探针，可能漏报“仅启动通过”型回归
+- Evidence / 证据:
+  - The previous `multi_smoke_gate.sh` focused on boot markers, fatal-signature grep,
+    safecopy triage, and with-disk virtio init markers, but did not run in-guest commands.
+    旧版 `multi_smoke_gate.sh` 重点在启动标记、fatal 签名 grep、safecopy 定性和
+    带盘 virtio 初始化标记，未执行来宾内命令探测。
+  - This created a blind spot where shell reachability could pass while runtime command
+    paths regressed.
+    这会导致“shell 可达但运行时命令路径退化”的场景漏检。
+- Impact / 影响:
+  - Gate sensitivity to boot failures was high, but runtime correctness coverage was insufficient.
+    对启动失败敏感，但运行时正确性覆盖不足。
+- Suggested fix / 修复建议:
+  - Add a runtime probe stage after each successful round to require:
+    `cat /proc/meminfo`, `ps -aux`, `minix-service sysctl srv_status` return success;
+    with-disk rounds additionally require `/dev/c0d0` to exist.
+    在每轮启动通过后增加运行时探针，要求：
+    `cat /proc/meminfo`、`ps -aux`、`minix-service sysctl srv_status` 成功返回；
+    带盘轮次额外要求 `/dev/c0d0` 存在。
+- Update / 进展:
+  - Added `minix/tests/riscv64/qemu_runtime_probe.py` to perform runtime command probes via PTY automation.
+    新增 `minix/tests/riscv64/qemu_runtime_probe.py`，通过 PTY 自动化执行运行时命令探测。
+  - `multi_smoke_gate.sh` now enables runtime probes by default and writes per-round probe logs:
+    `*.roundN.runtime.log`.
+    `multi_smoke_gate.sh` 已默认启用运行时探针，并输出每轮独立探针日志
+    `*.roundN.runtime.log`。
+  - Added runtime probe controls:
+    `--runtime-probe` / `--no-runtime-probe`,
+    `--runtime-timeout`, `--runtime-cmd-timeout`.
+    新增运行时探针控制项：
+    `--runtime-probe` / `--no-runtime-probe`、
+    `--runtime-timeout`、`--runtime-cmd-timeout`。
+  - Fixed runtime failure reporting in gate path (preserve non-zero probe RC in summary output).
+    修复了 runtime 失败分支返回码记录，summary 可正确显示 probe 非零退出码。
+- Evidence / 证据:
+  - `minix/tests/riscv64/qemu_runtime_probe.py`
+  - `minix/tests/riscv64/multi_smoke_gate.sh`
+- Status / 状态:
+  - Fixed in working tree; verified by:
+    `./minix/tests/riscv64/multi_smoke_gate.sh --rounds 1 --timeout 70 --runtime-timeout 70 --runtime-cmd-timeout 35`
+    with summary:
+    `Passed: 2`, `Failed: 0`, `Runtime passed: 2`, `Runtime failed: 0`.
+    Log root: `/tmp/minix-smoke-gate-20260217-070246`.
+    已在当前工作树修复并复验通过；日志目录：
+    `/tmp/minix-smoke-gate-20260217-070246`。
+
 ### 17) Repeated safecopy errors during boot are still noisy and unexplained / 启动期重复 safecopy 错误仍有噪声且原因未闭环
 - Evidence / 证据:
   - `/tmp/qemu-fix20.log:415` and `/tmp/qemu-fix20.log:1040` show `kcall safecopy err=...fc1c`.
@@ -752,6 +799,22 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
     `multi_smoke_gate.sh --rounds 2 --timeout 90` 亦为 4/4 全通过。
     新证据 `/tmp/minix-smoke-gate-20260216-224157/*.triage.txt`
     仍将首错定性为 `acceptable_noise`，首错签名稳定（`first_safecopy_line=414`）。
+  - 2026-02-17 procfs mount message recheck:
+    `none is mounted on /proc` in QEMU logs is confirmed to be the normal
+    success output of `mount` for source `none`, not a mount failure.
+    Verification references:
+    `/tmp/qemu-recheck-20260217-074108.log` and
+    `minix/commands/mount/mount.c:87`
+    (`printf("%s is mounted on %s\\n", argv[1], argv[2]);`).
+    Therefore this message is treated as a verified non-issue.
+    2026-02-17 对 procfs 挂载提示复核：
+    QEMU 日志中的 `none is mounted on /proc` 已确认是
+    `mount` 在源设备为 `none` 时的正常成功输出，而非挂载失败。
+    复核依据：
+    `/tmp/qemu-recheck-20260217-074108.log` 与
+    `minix/commands/mount/mount.c:87`
+    （`printf("%s is mounted on %s\\n", argv[1], argv[2]);`）。
+    因此该提示按“已核实非问题”处理。
 - Priority assessment / 优先级评估:
   - Keep at `P1` for now: the fault appears recoverable (retry succeeds), but repeated fallback/retry
     in hot read paths (`/proc/*`) can become a performance/logging storm and obscure real regressions.
@@ -877,6 +940,14 @@ This section archives items with code-level fixes landed (some may still require
   `minix/kernel/arch/riscv64/console.c` 改为包含 `kernel/kernel.h` 以符合内核头文件规则。
 - `minix/drivers/tty/ns16550/Makefile` adds `gp.c` and `__global_pointer$` defsym for static RV64 builds.  
   `minix/drivers/tty/ns16550/Makefile` 增加 `gp.c` 与 `__global_pointer$` defsym，支持 RV64 静态链接。
+- Former P1 #32: multi-smoke now includes default runtime probes via
+  `minix/tests/riscv64/qemu_runtime_probe.py` integrated into
+  `minix/tests/riscv64/multi_smoke_gate.sh`, covering `meminfo/ps/srv_status`
+  and `/dev/c0d0` existence in with-disk rounds.
+  历史 P1 #32：multi-smoke 已通过
+  `minix/tests/riscv64/qemu_runtime_probe.py` 接入
+  `minix/tests/riscv64/multi_smoke_gate.sh`，默认覆盖
+  `meminfo/ps/srv_status`，并在带盘轮次校验 `/dev/c0d0` 存在性。
 
 ## Vision / 愿景: pkgsrc on MINIX RV64
 

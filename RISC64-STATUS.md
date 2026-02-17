@@ -1,9 +1,9 @@
 # MINIX RISC-V 64-bit Port Status / MINIX RISC-V 64 位移植状态
 
-**Date / 日期**: 2026-02-16  
-**Version / 版本**: 1.7
+**Date / 日期**: 2026-02-17  
+**Version / 版本**: 1.8
 **Status / 状态**: Phase 2 stabilization — boots to shell; P0 closed and key P1 hygiene fixes landed
-**Progress / 进度**: ~79% (boot/userland path stabilized; diskless/with-disk gate hardened; core follow-ups remain)
+**Progress / 进度**: ~80% (boot/userland path stabilized; runtime-aware gate hardened; core follow-ups remain)
 
 ## Summary / 摘要
 
@@ -25,6 +25,10 @@
   并修正 regular-update `create_service` 失败时的 `r_new_rp/r_old_rp` 链接回滚。
 - 门禁脚本已加固为“每轮独立可复现”：`multi_smoke_gate.sh` 默认按轮创建
   `...roundN.img`，仅在显式 `--reuse-disk` 时复用单镜像。
+- 门禁进一步收敛为“启动 + 运行时”双阶段：
+  `multi_smoke_gate.sh` 默认执行 `qemu_runtime_probe.py`，每轮要求
+  `cat /proc/meminfo`、`ps -aux`、`minix-service sysctl srv_status` 成功；
+  带盘轮次额外校验 `/dev/c0d0` 存在。
 - `repro_build_gate.sh` 的 relax 行为探针改为
   `ld -r --whole-archive ... --no-whole-archive`，避免空对象误通过。
 - #24 已缓解：in-tree binutils 增加 `R_RISCV_RELAX` 兼容补丁，`ld` 不再因 `0x33` 中断链接。
@@ -53,6 +57,9 @@
   failures, and regular-update linkage is rolled back on `create_service` failure.
 - Gate behavior is now per-round reproducible by default:
   `multi_smoke_gate.sh` creates `...roundN.img` images unless `--reuse-disk` is set.
+- Gate now enforces a two-stage signal by default (boot + runtime probe):
+  `multi_smoke_gate.sh` runs `qemu_runtime_probe.py` each round and requires
+  successful `meminfo/ps/srv_status` commands, plus `/dev/c0d0` existence in with-disk rounds.
 - `repro_build_gate.sh` relax probe now uses
   `ld -r --whole-archive ... --no-whole-archive` to exercise real archive-member paths.
 - #24 is now mitigated: in-tree binutils has a compatibility patch for `R_RISCV_RELAX`,
@@ -106,6 +113,10 @@
 - `repro_build_gate.sh --objdir obj.intrgcc --skip-tools --skip-distribution
   --smoke-rounds 1 --smoke-timeout 45 --without-disk` 复验通过，
   日志位于 `/tmp/minix-smoke-gate-20260217-000150/`。
+- 严格门禁复测：
+  `multi_smoke_gate.sh --rounds 1 --timeout 70 --runtime-timeout 70 --runtime-cmd-timeout 35`
+  在 `/tmp/minix-smoke-gate-20260217-070246/` 完成
+  `Passed: 2, Failed: 0, Runtime passed: 2, Runtime failed: 0`。
 
 **English**
 - Boot path is stable to the `#` shell prompt; init and core services complete basic startup handshake.
@@ -130,6 +141,10 @@
 - `repro_build_gate.sh --objdir obj.intrgcc --skip-tools --skip-distribution
   --smoke-rounds 1 --smoke-timeout 45 --without-disk` also passed with artifacts
   under `/tmp/minix-smoke-gate-20260217-000150/`.
+- Strict gate revalidation:
+  `multi_smoke_gate.sh --rounds 1 --timeout 70 --runtime-timeout 70 --runtime-cmd-timeout 35`
+  passed under `/tmp/minix-smoke-gate-20260217-070246/` with
+  `Passed: 2, Failed: 0, Runtime passed: 2, Runtime failed: 0`.
 
 ## Key Issues (Snapshot) / 关键问题（摘要）
 
