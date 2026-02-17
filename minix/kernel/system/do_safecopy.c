@@ -376,7 +376,7 @@ static int safecopy(
 		return r;
 	}
 	r = virtual_copy_vmcheck(caller, &v_src, &v_dst, bytes);
-	if (r != OK && safecopy_log_count < 8) {
+	if (r != OK && r != VMSUSPEND && safecopy_log_count < 8) {
 		printf("safecopy: err %d caller=%d granter=%d grantee=%d gid=%d bytes=%zu g_off=0x%lx addr=0x%lx access=0x%x v_src=0x%lx v_dst=0x%lx\n",
 		    r, caller->p_endpoint, granter, grantee, grantid, bytes,
 		    (unsigned long)g_offset, (unsigned long)addr, access,
@@ -399,7 +399,7 @@ int do_safecopy_to(struct proc * caller, message * m_ptr)
 	    m_ptr->m_lsys_kern_safecopy.bytes,
 	    m_ptr->m_lsys_kern_safecopy.offset,
 	    (vir_bytes) m_ptr->m_lsys_kern_safecopy.address, CPF_WRITE);
-	if (r != OK && safecopy_to_log_count < 8) {
+	if (r != OK && r != VMSUSPEND && safecopy_to_log_count < 8) {
 		printf("do_safecopy_to: err %d caller=%d from_to=%d gid=%d bytes=%zu off=0x%lx addr=0x%lx\n",
 		    r, caller->p_endpoint, m_ptr->m_lsys_kern_safecopy.from_to,
 		    (int)m_ptr->m_lsys_kern_safecopy.gid,
@@ -424,7 +424,7 @@ int do_safecopy_from(struct proc * caller, message * m_ptr)
 	    m_ptr->m_lsys_kern_safecopy.bytes,
 	    m_ptr->m_lsys_kern_safecopy.offset,
 	    (vir_bytes) m_ptr->m_lsys_kern_safecopy.address, CPF_READ);
-	if (r != OK && safecopy_from_log_count < 8) {
+	if (r != OK && r != VMSUSPEND && safecopy_from_log_count < 8) {
 		printf("do_safecopy_from: err %d caller=%d from_to=%d gid=%d bytes=%zu off=0x%lx addr=0x%lx\n",
 		    r, caller->p_endpoint, m_ptr->m_lsys_kern_safecopy.from_to,
 		    (int)m_ptr->m_lsys_kern_safecopy.gid,

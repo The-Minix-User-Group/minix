@@ -1,0 +1,6 @@
+# $NetBSD: ISO646.src,v 1.1 2003/06/27 08:40:57 tshiozak Exp $
+
+NAME		"ISO646-US"
+ENCODING	"NONE"
+DEFCSID		"ISO646-US"	0
+INVALID		0x3F	# '?'

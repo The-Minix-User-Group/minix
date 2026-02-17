@@ -104,9 +104,9 @@
 
 #define RUPDATE_IS_UPDATING() (rupdate.flags & RS_UPDATING)
 #define RUPDATE_IS_VM_UPDATING() ((rupdate.flags & RS_UPDATING) && rupdate.vm_rpupd)
-#define RUPDATE_IS_VM_INIT_DONE() (rproc_ptr[_ENDPOINT_P(VM_PROC_NR)]->r_flags & RS_INIT_DONE)
+#define RUPDATE_IS_VM_INIT_DONE() rs_service_flag_is_set(VM_PROC_NR, RS_INIT_DONE)
 #define RUPDATE_IS_RS_UPDATING() ((rupdate.flags & RS_UPDATING) && rupdate.rs_rpupd)
-#define RUPDATE_IS_RS_INIT_DONE() (rproc_ptr[_ENDPOINT_P(RS_PROC_NR)]->r_flags & RS_INIT_DONE)
+#define RUPDATE_IS_RS_INIT_DONE() rs_service_flag_is_set(RS_PROC_NR, RS_INIT_DONE)
 #define RUPDATE_IS_INITIALIZING() (rupdate.flags & RS_INITIALIZING)
 #define RUPDATE_IS_UPD_SCHEDULED() (rupdate.num_rpupds > 0 && !RUPDATE_IS_UPDATING())
 #define RUPDATE_IS_UPD_MULTI() (rupdate.num_rpupds > 1)
@@ -120,4 +120,3 @@
 #define SRV_IS_UPD_SCHEDULED(RP) UPD_IS_UPD_SCHEDULED(&(RP)->r_upd)
 
 #endif /* RS_CONST_H */
-

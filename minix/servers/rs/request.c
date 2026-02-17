@@ -22,6 +22,7 @@ message *m_ptr;					/* request message pointer */
   struct rs_start rs_start;
   int noblock;
   int init_flags = 0;
+  int slot_initialized = 0;
 
   /* Check if the call can be allowed. */
   if((r = check_call_permission(m_ptr->m_source, RS_UP, NULL)) != OK)
@@ -62,27 +63,31 @@ message *m_ptr;					/* request message pointer */
 
   /* Initialize the slot as requested. */
   r = init_slot(rp, &rs_start, m_ptr->m_source);
+  slot_initialized = 1;
   if(r != OK) {
       printf("RS: do_up: unable to init the new slot: %d\n", r);
-      return r;
+      goto cleanup;
   }
 
   /* Check for duplicates */
   if(lookup_slot_by_label(rpub->label)) {
       printf("RS: service with the same label '%s' already exists\n",
           rpub->label);
-      return EBUSY;
+      r = EBUSY;
+      goto cleanup;
   }
   if(rpub->dev_nr>0 && lookup_slot_by_dev_nr(rpub->dev_nr)) {
       printf("RS: service with the same device number %d already exists\n",
           rpub->dev_nr);
-      return EBUSY;
+      r = EBUSY;
+      goto cleanup;
   }
   for (i = 0; i < rpub->nr_domain; i++) {
       if (lookup_slot_by_domain(rpub->domain[i]) != NULL) {
 	  printf("RS: service with the same domain %d already exists\n",
 	      rpub->domain[i]);
-	  return EBUSY;
+	  r = EBUSY;
+	  goto cleanup;
       }
   }
 
@@ -103,6 +108,13 @@ message *m_ptr;					/* request message pointer */
   rp->r_caller_request = RS_UP;
 
   return EDONTREPLY;
+
+cleanup:
+  if(slot_initialized) {
+      free_slot(rp);
+  }
+
+  return r;
 }
 
 /*===========================================================================*
@@ -732,6 +744,7 @@ int do_update(message *m_ptr)
           s = init_slot(new_rp, &rs_start, m_ptr->m_source);
           if(s != OK) {
               printf("RS: do_update: unable to init the new slot: %d\n", s);
+              free_slot(new_rp);
               return s;
           }
     
@@ -748,6 +761,8 @@ int do_update(message *m_ptr)
           s = create_service(new_rp);
           if(s != OK) {
               printf("RS: do_update: unable to create a new service: %d\n", s);
+              rp->r_new_rp = NULL;
+              new_rp->r_old_rp = NULL;
               return s;
           }
       }

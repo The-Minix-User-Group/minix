@@ -1,0 +1,71 @@
+. type=dir uname=root gname=wheel mode=0755
+./etc type=dir uname=root gname=wheel mode=0755
+./etc/mtree type=dir uname=root gname=wheel mode=0755
+./etc/mtree/set.minix-games type=file uname=root gname=wheel mode=0444
+./usr type=dir uname=root gname=wheel mode=0755
+./usr/games type=dir uname=root gname=wheel mode=0755
+./usr/games/adventure type=file uname=root gname=wheel mode=0755 size=302466 sha256=894def75a50ecf852b80e2eb83d09c0242a95e6df5c41bdd4b27b6de3c7d63e0
+./usr/games/arithmetic type=file uname=root gname=wheel mode=0755 size=198126 sha256=4bcd2a6eb81fe22bdab8b877a4a5cdca1c6d5595a030c738226f98e72fc7fc79
+./usr/games/banner type=file uname=root gname=wheel mode=0755 size=204678 sha256=a0cea9c31e27a4fc0a64eda735256273b51509a18da28ec455beaf7ddb6f1e19
+./usr/games/bcd type=file uname=root gname=wheel mode=0755 size=186791 sha256=5a02f3acc9dd39dcd709f296ee376ed0f4ce301e895aa49c8f3e87dd5840bc2c
+./usr/games/caesar type=file uname=root gname=wheel mode=0755 size=201063 sha256=220ae364ac5f1c86e735edc497cd218cd9e1203dc759e63cee5ea08ba4df1bca
+./usr/games/colorbars type=file uname=root gname=wheel mode=0755 size=357897 sha256=1ea68de40a2c00aa770b1fd3e28c874ff0082f005a28b022361214daab538e8f
+./usr/games/factor type=file uname=root gname=wheel mode=0755 size=1359365 sha256=736e55ad938d784ac0f2c37d2aebe78dd0ddb998f1ece4e5a8aff899fb78767d
+./usr/games/fish type=file uname=root gname=wheel mode=0755 size=199237 sha256=467f6c2ad78bc0eb879135b53c41ed7ab65bf2562046d6781b2bec1cafb9716f
+./usr/games/fortune type=file uname=root gname=wheel mode=0755 size=241778 sha256=dcd3c50012b4d611e4e4638935ad5cda93fa48b87d20752150739b52641737f0
+./usr/games/monop type=file uname=root gname=wheel mode=0755 size=240767 sha256=eb7ee8444ab11e76c5d29771c54eb3f2b8bcbbd101ce52f348c1b9e93ab8bf6d
+./usr/games/morse type=file uname=root gname=wheel mode=0755 size=188837 sha256=56aac625358fa8afb00339d921d561df2255e55d893c8ffe7e3cee9c1be31f10
+./usr/games/number type=file uname=root gname=wheel mode=0755 size=189819 sha256=68592a1ffc7b1f4d0b65a0c789c8f84f8c8f1564704a283f5b6761f0ba382aaa
+./usr/games/pig type=file uname=root gname=wheel mode=0755 size=186924 sha256=7f367734bd4f62b97e766826775d43705007b6f70cdb08191e58963401140f2e
+./usr/games/ppt type=file uname=root gname=wheel mode=0755 size=195870 sha256=1538f9432ff7b690a486ccfdd44b34181dbd97347910b4bb4606a9bd60e4bb9d
+./usr/games/primes type=file uname=root gname=wheel mode=0755 size=271129 sha256=9278aa31e65617122db16fb0ed4eebdc749c1ad3acb2a7a64062d9afd41f6583
+./usr/games/rain type=file uname=root gname=wheel mode=0755 size=363802 sha256=6ca12c14f58fcf1b5e39bb368fecd78777fdfcfaf81d5c6dfd27fc2b640e8c81
+./usr/games/random type=file uname=root gname=wheel mode=0755 size=209812 sha256=e5b032b7202426b9add5ac796fb03671f071096159a21751eaf9e78abbb57036
+./usr/games/rogue type=file uname=root gname=games mode=02555 size=607698 sha256=26c9a4ba6d6873aa5836cdee27e80312925baabf89aafc2790ac7b65792b1496
+./usr/games/rot13 type=file uname=root gname=wheel mode=0755 size=1961 sha256=834238da7ef2dd83cb89f4a1d71954d7bc2ebf13f6a4e51d78f955e6ca0c42d5
+./usr/games/snake type=file uname=root gname=games mode=02555 size=502761 sha256=06592ff2a623cb3f0a6b9b70d804c8022bb8f0bc70d298667ef87257537a36ae
+./usr/games/snscore type=file uname=root gname=wheel mode=0755 size=305896 sha256=c7c16110f8d242bbab64f0c84a149f1ba0cbbb7a2e084c0efd6583d9d642b841
+./usr/games/strfile type=file uname=root gname=wheel mode=0755 size=198198 sha256=91e807e5924975f77023f53f40002f727cfa994087c9c35d1a0bdf97933bd6f4
+./usr/games/tetris type=file uname=root gname=games mode=02555 size=390874 sha256=8194e4486c607c048957d702548391df42de74a0003b9df38d9c761428d74206
+./usr/games/unstr type=file uname=root gname=wheel mode=0755 size=189631 sha256=173c776ba9bd3e8452a4c8d30e38c88226b17d3e98d432a74ab8807f53997167
+./usr/games/wargames type=file uname=root gname=wheel mode=0755 size=2153 sha256=63a8253f9388695804e5d301ccf0d56ba7e062820fae15c478b9f530747dd15b
+./usr/games/worm type=file uname=root gname=wheel mode=0755 size=366601 sha256=763a283c36e8962d4c41201258607c68602693b861f0ce14dc0d8d8f9a865a73
+./usr/games/worms type=file uname=root gname=wheel mode=0755 size=358067 sha256=0a186a03ada01a5f2a10e555933b9636b51d3ee931c0913ee7d6936d2c7d0fa4
+./usr/games/wtf type=file uname=root gname=wheel mode=0755 size=1789 sha256=b7f8ff5de32189b401de31b578675516fdd49da98e5561924ef8ed2092e1e420
+./usr/games/hide type=dir uname=root gname=games mode=0750
+./usr/share type=dir uname=root gname=wheel mode=0755
+./usr/share/games type=dir uname=root gname=wheel mode=0755
+./usr/share/games/fish.instr type=file uname=root gname=wheel mode=0644 size=1566 sha256=e13f1155aa344335223bf3c67aa4e3c8f19973033fc63aab7c0fca3bae310be7
+./usr/share/games/fortune type=dir uname=root gname=wheel mode=0755
+./usr/share/games/fortune/farber type=file uname=root gname=wheel mode=0644 size=38417 sha256=0e3e322a5bc3bcbc685c4ebabf395288670cf0f394581c171109e0cb336522d7
+./usr/share/games/fortune/farber.dat type=file uname=root gname=wheel mode=0644 size=7408 sha256=083ead9abe74cfb0d2a574678928f64d4448785b84f25a159113412ed435c846
+./usr/share/games/fortune/fortunes type=file uname=root gname=wheel mode=0644 size=584450 sha256=6749b60dd41deedd43a9edcd722111ee07b71bdaa9a5ccea965a79640d2863e5
+./usr/share/games/fortune/fortunes-o type=file uname=root gname=wheel mode=0644 size=65357 sha256=a668758ac2c407da6e3d0a0b55c3e74f3e5d6222c4701f3b298488ef6c0c381c
+./usr/share/games/fortune/fortunes-o.dat type=file uname=root gname=wheel mode=0644 size=2792 sha256=bc57cb811c095e0673a1c8df3f15b89f67245d3ee6c53a88f4116f3dfc212ab3
+./usr/share/games/fortune/fortunes.dat type=file uname=root gname=wheel mode=0644 size=28104 sha256=3011faf0795328cc4a2f2f31164c799d6130c64d407e10bfbdf4e915de2f86be
+./usr/share/games/fortune/fortunes2 type=file uname=root gname=wheel mode=0644 size=2048148 sha256=e3b161df61c4d6b05d8138ee33a069d4ff993e49f4f2f4dd8fd5cf167f6f4393
+./usr/share/games/fortune/fortunes2-o type=file uname=root gname=wheel mode=0644 size=594867 sha256=e04e287a86710a145739ef224d716672f6737319cac4f75f588598cd3ddfcfc4
+./usr/share/games/fortune/fortunes2-o.dat type=file uname=root gname=wheel mode=0644 size=17200 sha256=ec83d213010ea3677771a16510f2cda7f76aee8e49eef44b46a5b249af32cdca
+./usr/share/games/fortune/fortunes2.dat type=file uname=root gname=wheel mode=0644 size=92776 sha256=563f2e16afc1db1c9006bdca75c48154932b9c0cab981ea2486172e819fe437a
+./usr/share/games/fortune/limerick type=file uname=root gname=wheel mode=0644 size=4192 sha256=1ee000fd679dc1fb2d7a3b43aef72a549fb353fc8c84bb96fce838914f631e2e
+./usr/share/games/fortune/limerick-o type=file uname=root gname=wheel mode=0644 size=166375 sha256=6d281840e454347b4c0b68c2344f22151f2e43c1360b80f2f3451fe0e188ebf8
+./usr/share/games/fortune/limerick-o.dat type=file uname=root gname=wheel mode=0644 size=7864 sha256=3da5027be98b2542e881cc31f30a4f906888fb80bf6165907ed79c26e1f780be
+./usr/share/games/fortune/limerick.dat type=file uname=root gname=wheel mode=0644 size=232 sha256=106565da741f034035b579cde5ffe14081da42c05ab1094fbf76102a2c91c9ea
+./usr/share/games/fortune/netbsd type=file uname=root gname=wheel mode=0644 size=11685 sha256=bf5c9baed5106dd67043c966da546f7a017d73d2072eb869ef5528d1f2a8f4bc
+./usr/share/games/fortune/netbsd-o type=file uname=root gname=wheel mode=0644 size=1109 sha256=fd39fbb0713a518058506bc2321eea4d374c131d184e131abc4e20db999b81e5
+./usr/share/games/fortune/netbsd-o.dat type=file uname=root gname=wheel mode=0644 size=160 sha256=51fd55aa836681b547bde94924dd39baeede77936bc7c2dfb95921a982457e08
+./usr/share/games/fortune/netbsd-tips type=file uname=root gname=wheel mode=0644 size=4578 sha256=991529b1947927920647c15fca5348b3457f25f85c61030ce2f48ef055e4d19e
+./usr/share/games/fortune/netbsd-tips.dat type=file uname=root gname=wheel mode=0644 size=264 sha256=8e20e856f34bbb40c13f1fd283c4367e0ea73df42fbdf9648333611db8dc320d
+./usr/share/games/fortune/netbsd.dat type=file uname=root gname=wheel mode=0644 size=1480 sha256=ad469c595c539834cb4d5e671c005bbdcdcf4253e98fec9a823005f5918a0c29
+./usr/share/games/fortune/startrek type=file uname=root gname=wheel mode=0644 size=27555 sha256=ba1e4779b12bfd41334e4b6b1491de47575346193020c8da21c543ac9532c16b
+./usr/share/games/fortune/startrek.dat type=file uname=root gname=wheel mode=0644 size=1648 sha256=ab46b177e98ec15eab4c6c85e0ea9771ccd8787c6b61d4eb642c2ed3c9c7b044
+./usr/share/games/fortune/unamerican-o type=file uname=root gname=wheel mode=0644 size=3668 sha256=785be1c0eac60d40958a9edae273ad5ac40431565c63b770c5a372f0284c42b9
+./usr/share/games/fortune/unamerican-o.dat type=file uname=root gname=wheel mode=0644 size=1544 sha256=31fa79f7bb39b2cc2c01fec90fe49b8a6578c68b327d80cfca18b1d247954c65
+./usr/share/games/fortune/zippy type=file uname=root gname=wheel mode=0644 size=39418 sha256=ca1ca0c87290339e887911fc25d9c170eb8c72a183b0140040c7379919487301
+./usr/share/games/fortune/zippy.dat type=file uname=root gname=wheel mode=0644 size=4544 sha256=d4004537a7c1a563c98098d25ccb7d32ccac85467bbd28626af7bf5563694415
+./var type=dir uname=root gname=wheel mode=0755
+./var/db type=dir uname=root gname=wheel mode=0755
+./var/db/obsolete type=dir uname=root gname=wheel mode=0755
+./var/db/obsolete/minix-games type=file uname=root gname=wheel mode=0644 size=0 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 tags=etc_pkg
+./var/games type=dir uname=games gname=games mode=0775
+./var/games/tetris.scores type=file uname=games gname=games mode=0664 size=0 tags=etc_pkg

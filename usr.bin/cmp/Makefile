@@ -4,4 +4,8 @@
 PROG=	cmp
 SRCS=	cmp.c misc.c regular.c special.c
 
+.if ${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv"
+LDFLAGS+= -Wl,--defsym,__global_pointer$$=_gp
+.endif
+
 .include <bsd.prog.mk>

@@ -160,7 +160,7 @@ static int sef_cb_init_fresh(int UNUSED(type), sef_init_info_t *UNUSED(info))
 {
 /* Initialize the reincarnation server. */
   struct boot_image *ip;
-  int s,i;
+  int s, i, proc_nr, rs_proc_nr;
   int nr_image_srvs, nr_image_priv_srvs, nr_uncaught_init_srvs;
   struct rproc *rp;
   struct rproc *replica_rp;
@@ -342,7 +342,10 @@ static int sef_cb_init_fresh(int UNUSED(type), sef_init_info_t *UNUSED(info))
 
       /* Mark as in use and active. */
       rp->r_flags = RS_IN_USE | RS_ACTIVE;
-      rproc_ptr[_ENDPOINT_P(rpub->endpoint)]= rp;
+      if ((s = rs_isokprocnr(rpub->endpoint, &proc_nr)) != OK) {
+          panic("invalid boot endpoint %d: %d", rpub->endpoint, s);
+      }
+      rproc_ptr[proc_nr] = rp;
       rpub->in_use = TRUE;
   }
 
@@ -438,7 +441,10 @@ static int sef_cb_init_fresh(int UNUSED(type), sef_init_info_t *UNUSED(info))
   /* Now create a new RS instance and let the current
    * instance live update into the replica. Clone RS' own slot first.
    */
-  rp = rproc_ptr[_ENDPOINT_P(RS_PROC_NR)];
+  if ((s = rs_isokservice(RS_PROC_NR, &rs_proc_nr, &rp)) != OK) {
+      panic("unable to locate RS slot: %d", s);
+  }
+  (void)rs_proc_nr;
   if((s = clone_slot(rp, &replica_rp)) != OK) {
       panic("unable to clone current RS instance: %d", s);
   }
@@ -500,7 +506,7 @@ static int sef_cb_init_fresh(int UNUSED(type), sef_init_info_t *UNUSED(info))
 static int sef_cb_init_restart(int type, sef_init_info_t *info)
 {
 /* Restart the reincarnation server. */
-  int r;
+  int r, old_rs_proc, new_rs_proc;
   struct rproc *old_rs_rp, *new_rs_rp;
 
   assert(info->endpoint == RS_PROC_NR);
@@ -513,8 +519,18 @@ static int sef_cb_init_restart(int type, sef_init_info_t *info)
   }
 
   /* New RS takes over. */
-  old_rs_rp = rproc_ptr[_ENDPOINT_P(RS_PROC_NR)];
-  new_rs_rp = rproc_ptr[_ENDPOINT_P(info->old_endpoint)];
+  if ((r = rs_isokservice(RS_PROC_NR, &old_rs_proc, &old_rs_rp)) != OK) {
+      printf("RS: unable to locate current RS instance: %d\n", r);
+      return r;
+  }
+  if ((r = rs_isokservice(info->old_endpoint, &new_rs_proc, &new_rs_rp))
+      != OK) {
+      printf("RS: unable to locate old RS instance %d: %d\n",
+          info->old_endpoint, r);
+      return r;
+  }
+  (void)old_rs_proc;
+  (void)new_rs_proc;
   if(rs_verbose)
       printf("RS: %s is the new RS after restart\n", srv_to_string(new_rs_rp));
 
@@ -550,7 +566,7 @@ static int sef_cb_init_restart(int type, sef_init_info_t *info)
 static int sef_cb_init_lu(int type, sef_init_info_t *info)
 {
 /* Start a new version of the reincarnation server. */
-  int r;
+  int r, old_rs_proc, new_rs_proc;
   struct rproc *old_rs_rp, *new_rs_rp;
 
   assert(info->endpoint == RS_PROC_NR);
@@ -564,8 +580,18 @@ static int sef_cb_init_lu(int type, sef_init_info_t *info)
   }
 
   /* New RS takes over. */
-  old_rs_rp = rproc_ptr[_ENDPOINT_P(RS_PROC_NR)];
-  new_rs_rp = rproc_ptr[_ENDPOINT_P(info->old_endpoint)];
+  if ((r = rs_isokservice(RS_PROC_NR, &old_rs_proc, &old_rs_rp)) != OK) {
+      printf("RS: unable to locate current RS instance: %d\n", r);
+      return r;
+  }
+  if ((r = rs_isokservice(info->old_endpoint, &new_rs_proc, &new_rs_rp))
+      != OK) {
+      printf("RS: unable to locate old RS instance %d: %d\n",
+          info->old_endpoint, r);
+      return r;
+  }
+  (void)old_rs_proc;
+  (void)new_rs_proc;
   if(rs_verbose)
       printf("RS: %s is the new RS after live update\n",
           srv_to_string(new_rs_rp));

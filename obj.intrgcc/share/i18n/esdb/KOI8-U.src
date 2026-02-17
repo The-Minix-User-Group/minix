@@ -1,0 +1,6 @@
+# $NetBSD: KOI.src,v 1.2 2006/09/16 08:38:20 tnozaki Exp $
+
+NAME		"KOI8-U"
+ENCODING	"NONE"
+DEFCSID		"KOI8-U"		0
+INVALID		0x3F # '?'

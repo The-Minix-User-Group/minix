@@ -1,0 +1,43 @@
+# $NetBSD: mapper.dir.KOI.src,v 1.1 2006/09/16 08:38:20 tnozaki Exp $
+
+GOST19768-74/UCS		mapper_std		KOI/GOST19768-74%UCS.mps
+UCS/GOST19768-74		mapper_std		KOI/UCS%GOST19768-74.mps
+GOST19768-74:GR/GOST19768-74	mapper_zone		0x00 - 0x7F : +0x80
+GOST19768-74/GOST19768-74:GR	mapper_zone		0x80 - 0xFF : -0x80
+GOST19768-74:GR/UCS		mapper_serial		GOST19768-74:GR/GOST19768-74,GOST19768-74/UCS
+UCS/GOST19768-74:GR		mapper_serial		UCS/GOST19768-74,GOST19768-74/GOST19768-74:GR
+ISO-5427EXT/UCS			mapper_std		KOI/ISO-5427%UCS.mps
+UCS/ISO-5427EXT			mapper_std		KOI/UCS%ISO-5427.mps
+ISO-5427/UCS			mapper_parallel		GOST19768-74:GR/UCS,ISO-5427EXT/UCS
+UCS/ISO-5427			mapper_parallel		UCS/GOST19768-74:GR,UCS/ISO-5427EXT
+KOI7/UCS			mapper_std		KOI/KOI7%UCS.mps
+UCS/KOI7			mapper_std		KOI/UCS%KOI7.mps
+KOI8EXT/UCS                     mapper_std                      KOI/KOI8%UCS.mps
+UCS/KOI8EXT                     mapper_std                      KOI/UCS%KOI8.mps
+KOI8-CEXT/UCS                   mapper_std                      KOI/KOI8-C%UCS.mps
+UCS/KOI8-CEXT                   mapper_std                      KOI/UCS%KOI8-C.mps
+KOI8-EEXT/UCS                   mapper_std                      KOI/KOI8-E%UCS.mps
+UCS/KOI8-EEXT                   mapper_std                      KOI/UCS%KOI8-E.mps
+KOI8-REXT/UCS                   mapper_std                      KOI/KOI8-R%UCS.mps
+UCS/KOI8-REXT                   mapper_std                      KOI/UCS%KOI8-R.mps
+KOI8-RUEXT/UCS                  mapper_std                      KOI/KOI8-RU%UCS.mps
+UCS/KOI8-RUEXT                  mapper_std                      KOI/UCS%KOI8-RU.mps
+KOI8-TEXT/UCS                   mapper_std                      KOI/KOI8-T%UCS.mps
+UCS/KOI8-TEXT                   mapper_std                      KOI/UCS%KOI8-T.mps
+KOI8-UEXT/UCS                   mapper_std                      KOI/KOI8-U%UCS.mps
+UCS/KOI8-UEXT                   mapper_std                      KOI/UCS%KOI8-U.mps
+KOI8/UCS                        mapper_parallel                 GOST19768-74/UCS,KOI8EXT/UCS
+UCS/KOI8                        mapper_parallel                 UCS/GOST19768-74,UCS/KOI8EXT
+KOI8-C/UCS                      mapper_parallel                 GOST19768-74/UCS,KOI8-CEXT/UCS
+UCS/KOI8-C                      mapper_parallel                 UCS/GOST19768-74,UCS/KOI8-CEXT
+KOI8-E/UCS                      mapper_parallel                 GOST19768-74/UCS,KOI8-EEXT/UCS
+UCS/KOI8-E                      mapper_parallel                 UCS/GOST19768-74,UCS/KOI8-EEXT
+KOI8-R/UCS                      mapper_parallel                 GOST19768-74/UCS,KOI8-REXT/UCS
+UCS/KOI8-R                      mapper_parallel                 UCS/GOST19768-74,UCS/KOI8-REXT
+KOI8-RU/UCS                     mapper_parallel                 GOST19768-74/UCS,KOI8-RUEXT/UCS
+UCS/KOI8-RU                     mapper_parallel                 UCS/GOST19768-74,UCS/KOI8-RUEXT
+KOI8-T/UCS                      mapper_parallel                 GOST19768-74/UCS,KOI8-TEXT/UCS
+UCS/KOI8-T                      mapper_parallel                 UCS/GOST19768-74,UCS/KOI8-TEXT
+KOI8-U/UCS                      mapper_parallel                 GOST19768-74/UCS,KOI8-UEXT/UCS
+UCS/KOI8-U                      mapper_parallel                 UCS/GOST19768-74,UCS/KOI8-UEXT
+

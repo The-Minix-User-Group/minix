@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# Compatibility wrapper for neofetch.
+#
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+
+if [ -x /bin/neofetch ]; then
+	exec /bin/neofetch "$@"
+fi
+
+if command -v neofetch >/dev/null 2>&1; then
+	exec neofetch "$@"
+fi
+
+if [ -x "$(dirname "$0")/neofetch" ]; then
+	exec "$(dirname "$0")/neofetch" "$@"
+fi
+
+echo "pfetch: /bin/neofetch not found" >&2
+exit 127

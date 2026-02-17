@@ -246,17 +246,27 @@ static void handle_page_fault(struct trapframe *tf, u64_t cause, u64_t addr)
     int exec_fault = (cause == EXC_INST_PAGE_FAULT);
     struct proc *pr = get_cpulocal_var(proc_ptr);
     int in_physcopy = 0;
+    int in_memset = 0;
     int err;
     message m_pagefault;
 
     in_physcopy = (tf->tf_sepc > (vir_bytes)phys_copy) &&
         (tf->tf_sepc < (vir_bytes)phys_copy_fault);
+    in_memset = (tf->tf_sepc > (vir_bytes)phys_memset) &&
+        (tf->tf_sepc < (vir_bytes)memset_fault);
 
-    if (catch_pagefaults && in_physcopy) {
+    if (catch_pagefaults && (in_physcopy || in_memset)) {
         if (tf->tf_sstatus & SSTATUS_SPP) {
-            tf->tf_sepc = (u64_t)phys_copy_fault_in_kernel;
+            if (in_physcopy)
+                tf->tf_sepc = (u64_t)phys_copy_fault_in_kernel;
+            else
+                tf->tf_sepc = (u64_t)memset_fault_in_kernel;
         } else if (pr != NULL) {
-            pr->p_reg.pc = (reg_t)phys_copy_fault;
+            if (in_physcopy)
+                pr->p_reg.pc = (reg_t)phys_copy_fault;
+            else
+                pr->p_reg.pc = (reg_t)memset_fault;
+            pr->p_reg.retreg = (reg_t)addr;
         }
         return;
     }

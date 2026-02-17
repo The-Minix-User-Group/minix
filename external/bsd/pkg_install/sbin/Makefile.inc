@@ -4,13 +4,13 @@
 
 .include "${.PARSEDIR}/../Makefile.inc"
 
-LIBINSTALL != cd ${.PARSEDIR}/../lib && ${PRINTOBJDIR}
+LIBINSTALLDIR != cd ${.PARSEDIR}/../lib && ${PRINTOBJDIR}
 
 BINDIR?=	/usr/sbin
 CPPFLAGS+=	-DBINDIR='"${BINDIR}"'
 
-DPADD+=	${LIBINSTALL}/libinstall.a
-LDADD+=	-L${LIBINSTALL} -linstall -ltermcap
+DPADD+=	${LIBINSTALLDIR}/libinstall.a
+LDADD+=	-L${LIBINSTALLDIR} -linstall -ltermcap
 
 DPADD+=		${LIBFETCH} ${LIBSSL} ${LIBCRYPTO}
 LDADD+=		-lfetch -lssl -lcrypto

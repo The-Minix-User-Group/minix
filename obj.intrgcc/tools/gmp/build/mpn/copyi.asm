@@ -1,0 +1,1 @@
+/home/donz/minix/tools/gmp/../../external/lgpl3/gmp/dist/mpn/x86_64/copyi.asm

@@ -140,9 +140,10 @@ phys_copy:
     ret
 
 /*
- * void phys_memset(phys_bytes dst, unsigned long c, phys_bytes size)
+ * phys_bytes phys_memset(phys_bytes dst, unsigned long c, phys_bytes size)
  *
  * Set size bytes at dst to value c.
+ * Returns 0 on success, non-zero on fault.
  *
  * Arguments:
  *   a0 = destination physical address
@@ -201,6 +202,11 @@ phys_memset:
     bnez    a2, .Lmemset_byte
 
 .Lmemset_done:
+    li      a0, 0
+    ret
+
+.Lmemset_fault:
+    li      a0, -1
     ret
 
 /*
@@ -217,6 +223,16 @@ phys_copy_fault:
 phys_copy_fault_in_kernel:
     /* Same as above for kernel faults */
     j       .Lcopy_fault
+
+    .globl memset_fault
+    .type memset_fault, @function
+memset_fault:
+    j       .Lmemset_fault
+
+    .globl memset_fault_in_kernel
+    .type memset_fault_in_kernel, @function
+memset_fault_in_kernel:
+    j       .Lmemset_fault
 
 /*
  * void *memcpy(void *dst, const void *src, size_t n)

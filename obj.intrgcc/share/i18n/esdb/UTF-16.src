@@ -1,0 +1,7 @@
+# $NetBSD: UTF.src,v 1.1 2003/06/27 08:40:59 tshiozak Exp $
+
+NAME		"UTF-16"
+ENCODING	"UTF1632"
+VARIABLE	"utf16"
+DEFCSID		"UCS"		0
+INVALID		0x3F	# '?'

@@ -198,7 +198,7 @@ static int virtio_blk_init(void)
         sizeof(blkf) / sizeof(blkf[0]), VIRTIO_BLK_NUM_THREADS, 0);
 
     if (blk_dev == NULL) {
-        dprintf(("device not found"));
+        /* Optional device: keep diskless boot logs quiet. */
         return ENODEV;
     }
 

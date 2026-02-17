@@ -18,7 +18,7 @@ port targeting QEMU virt.
 - `./build.sh -m evbriscv64 distribution`: RISC-V distribution build; use the
   full flag set in `README-RISCV64.md` as the current baseline.
 - `make -C minix build`: build MINIX-specific components only.
-- `./minix/scripts/qemu-riscv64.sh -k minix/kernel/obj/kernel -B obj/destdir.evbriscv64`:
+- `./minix/scripts/qemu-riscv64.sh -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64`:
   boot in QEMU with a built kernel and destdir.
 - `./minix/tests/run` or `./minix/tests/riscv64/run_tests.sh all`: run MINIX
   and RISC-V test suites; `make regression-tests` runs NetBSD-style regressions.

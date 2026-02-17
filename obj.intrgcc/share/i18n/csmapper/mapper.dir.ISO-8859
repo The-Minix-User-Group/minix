@@ -1,0 +1,94 @@
+# ISO-8859
+ISO-8859-1/UCS                  mapper_none     
+UCS/ISO-8859-1                  mapper_zone     0x00-0xFF
+ISO-8859-1/UCS                  mapper_std      ISO-8859/ISO-8859-1%UCS.mps
+UCS/ISO-8859-1                  mapper_std      ISO-8859/UCS%ISO-8859-1.mps
+ISO-8859-1:GR/ISO-8859-1        mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-1/ISO-8859-1:GR        mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-1:GR/UCS               mapper_serial   ISO-8859-1:GR/ISO-8859-1,ISO-8859-1/UCS
+UCS/ISO-8859-1:GR               mapper_serial   UCS/ISO-8859-1,ISO-8859-1/ISO-8859-1:GR
+ISO-8859-2/UCS                  mapper_std      ISO-8859/ISO-8859-2%UCS.mps
+UCS/ISO-8859-2                  mapper_std      ISO-8859/UCS%ISO-8859-2.mps
+ISO-8859-2:GR/ISO-8859-2        mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-2/ISO-8859-2:GR        mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-2:GR/UCS               mapper_serial   ISO-8859-2:GR/ISO-8859-2,ISO-8859-2/UCS
+UCS/ISO-8859-2:GR               mapper_serial   UCS/ISO-8859-2,ISO-8859-2/ISO-8859-2:GR
+ISO-8859-3/UCS                  mapper_std      ISO-8859/ISO-8859-3%UCS.mps
+UCS/ISO-8859-3                  mapper_std      ISO-8859/UCS%ISO-8859-3.mps
+ISO-8859-3:GR/ISO-8859-3        mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-3/ISO-8859-3:GR        mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-3:GR/UCS               mapper_serial   ISO-8859-3:GR/ISO-8859-3,ISO-8859-3/UCS
+UCS/ISO-8859-3:GR               mapper_serial   UCS/ISO-8859-3,ISO-8859-3/ISO-8859-3:GR
+ISO-8859-4/UCS                  mapper_std      ISO-8859/ISO-8859-4%UCS.mps
+UCS/ISO-8859-4                  mapper_std      ISO-8859/UCS%ISO-8859-4.mps
+ISO-8859-4:GR/ISO-8859-4        mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-4/ISO-8859-4:GR        mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-4:GR/UCS               mapper_serial   ISO-8859-4:GR/ISO-8859-4,ISO-8859-4/UCS
+UCS/ISO-8859-4:GR               mapper_serial   UCS/ISO-8859-4,ISO-8859-4/ISO-8859-4:GR
+ISO-8859-5/UCS                  mapper_std      ISO-8859/ISO-8859-5%UCS.mps
+UCS/ISO-8859-5                  mapper_std      ISO-8859/UCS%ISO-8859-5.mps
+ISO-8859-5:GR/ISO-8859-5        mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-5/ISO-8859-5:GR        mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-5:GR/UCS               mapper_serial   ISO-8859-5:GR/ISO-8859-5,ISO-8859-5/UCS
+UCS/ISO-8859-5:GR               mapper_serial   UCS/ISO-8859-5,ISO-8859-5/ISO-8859-5:GR
+ISO-8859-6/UCS                  mapper_std      ISO-8859/ISO-8859-6%UCS.mps
+UCS/ISO-8859-6                  mapper_std      ISO-8859/UCS%ISO-8859-6.mps
+ISO-8859-6:GR/ISO-8859-6        mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-6/ISO-8859-6:GR        mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-6:GR/UCS               mapper_serial   ISO-8859-6:GR/ISO-8859-6,ISO-8859-6/UCS
+UCS/ISO-8859-6:GR               mapper_serial   UCS/ISO-8859-6,ISO-8859-6/ISO-8859-6:GR
+ISO-8859-7/UCS                  mapper_std      ISO-8859/ISO-8859-7%UCS.mps
+UCS/ISO-8859-7                  mapper_std      ISO-8859/UCS%ISO-8859-7.mps
+ISO-8859-7:GR/ISO-8859-7        mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-7/ISO-8859-7:GR        mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-7:GR/UCS               mapper_serial   ISO-8859-7:GR/ISO-8859-7,ISO-8859-7/UCS
+UCS/ISO-8859-7:GR               mapper_serial   UCS/ISO-8859-7,ISO-8859-7/ISO-8859-7:GR
+ISO-8859-8/UCS                  mapper_std      ISO-8859/ISO-8859-8%UCS.mps
+UCS/ISO-8859-8                  mapper_std      ISO-8859/UCS%ISO-8859-8.mps
+ISO-8859-8:GR/ISO-8859-8        mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-8/ISO-8859-8:GR        mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-8:GR/UCS               mapper_serial   ISO-8859-8:GR/ISO-8859-8,ISO-8859-8/UCS
+UCS/ISO-8859-8:GR               mapper_serial   UCS/ISO-8859-8,ISO-8859-8/ISO-8859-8:GR
+ISO-8859-9/UCS                  mapper_std      ISO-8859/ISO-8859-9%UCS.mps
+UCS/ISO-8859-9                  mapper_std      ISO-8859/UCS%ISO-8859-9.mps
+ISO-8859-9:GR/ISO-8859-9        mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-9/ISO-8859-9:GR        mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-9:GR/UCS               mapper_serial   ISO-8859-9:GR/ISO-8859-9,ISO-8859-9/UCS
+UCS/ISO-8859-9:GR               mapper_serial   UCS/ISO-8859-9,ISO-8859-9/ISO-8859-9:GR
+ISO-8859-10/UCS                 mapper_std      ISO-8859/ISO-8859-10%UCS.mps
+UCS/ISO-8859-10                 mapper_std      ISO-8859/UCS%ISO-8859-10.mps
+ISO-8859-10:GR/ISO-8859-10      mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-10/ISO-8859-10:GR      mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-10:GR/UCS              mapper_serial   ISO-8859-10:GR/ISO-8859-10,ISO-8859-10/UCS
+UCS/ISO-8859-10:GR              mapper_serial   UCS/ISO-8859-10,ISO-8859-10/ISO-8859-10:GR
+ISO-8859-11/UCS                 mapper_std      ISO-8859/ISO-8859-11%UCS.mps
+UCS/ISO-8859-11                 mapper_std      ISO-8859/UCS%ISO-8859-11.mps
+ISO-8859-11:GR/ISO-8859-11      mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-11/ISO-8859-11:GR      mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-11:GR/UCS              mapper_serial   ISO-8859-11:GR/ISO-8859-11,ISO-8859-11/UCS
+UCS/ISO-8859-11:GR              mapper_serial   UCS/ISO-8859-11,ISO-8859-11/ISO-8859-11:GR
+ISO-8859-13/UCS                 mapper_std      ISO-8859/ISO-8859-13%UCS.mps
+UCS/ISO-8859-13                 mapper_std      ISO-8859/UCS%ISO-8859-13.mps
+ISO-8859-13:GR/ISO-8859-13      mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-13/ISO-8859-13:GR      mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-13:GR/UCS              mapper_serial   ISO-8859-13:GR/ISO-8859-13,ISO-8859-13/UCS
+UCS/ISO-8859-13:GR              mapper_serial   UCS/ISO-8859-13,ISO-8859-13/ISO-8859-13:GR
+ISO-8859-14/UCS                 mapper_std      ISO-8859/ISO-8859-14%UCS.mps
+UCS/ISO-8859-14                 mapper_std      ISO-8859/UCS%ISO-8859-14.mps
+ISO-8859-14:GR/ISO-8859-14      mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-14/ISO-8859-14:GR      mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-14:GR/UCS              mapper_serial   ISO-8859-14:GR/ISO-8859-14,ISO-8859-14/UCS
+UCS/ISO-8859-14:GR              mapper_serial   UCS/ISO-8859-14,ISO-8859-14/ISO-8859-14:GR
+ISO-8859-15/UCS                 mapper_std      ISO-8859/ISO-8859-15%UCS.mps
+UCS/ISO-8859-15                 mapper_std      ISO-8859/UCS%ISO-8859-15.mps
+ISO-8859-15:GR/ISO-8859-15      mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-15/ISO-8859-15:GR      mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-15:GR/UCS              mapper_serial   ISO-8859-15:GR/ISO-8859-15,ISO-8859-15/UCS
+UCS/ISO-8859-15:GR              mapper_serial   UCS/ISO-8859-15,ISO-8859-15/ISO-8859-15:GR
+ISO-8859-16/UCS                 mapper_std      ISO-8859/ISO-8859-16%UCS.mps
+UCS/ISO-8859-16                 mapper_std      ISO-8859/UCS%ISO-8859-16.mps
+ISO-8859-16:GR/ISO-8859-16      mapper_zone     0x00 - 0x7F : +0x80
+ISO-8859-16/ISO-8859-16:GR      mapper_zone     0x80 - 0xFF : -0x80
+ISO-8859-16:GR/UCS              mapper_serial   ISO-8859-16:GR/ISO-8859-16,ISO-8859-16/UCS
+UCS/ISO-8859-16:GR              mapper_serial   UCS/ISO-8859-16,ISO-8859-16/ISO-8859-16:GR
+

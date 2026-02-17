@@ -35,9 +35,16 @@
 path="$0"
 [ "${path#/*}" = "$path" ] && path="./$path"
 
-release=`grep "define OS_RELEASE" ${path%/*}/../../minix/include/minix/config.h | awk '{ print $3} ' | tr -d '"'  | awk -F. ' { print $1 }'`
-major=`grep "define OS_RELEASE" ${path%/*}/../../minix/include/minix/config.h | awk '{ print $3 }' | tr -d '"'  | awk -F. ' { print $2 }'`
-minor=`grep "define OS_RELEASE" ${path%/*}/../../minix/include/minix/config.h | awk '{ print $3 }' | tr -d '"'  | awk -F. ' { print $3 }'`
+version_h="${path%/*}/../../minix/include/minix/version.h"
+os_release=`awk '/^[ 	]*#define[ 	]+OS_RELEASE[ 	]+"/ {gsub(/"/, "", $3); print $3; exit}' "$version_h"`
+
+old_ifs="$IFS"
+IFS=.
+set -- $os_release
+IFS="$old_ifs"
+release="$1"
+major="$2"
+minor="$3"
 
 
 case "$option" in

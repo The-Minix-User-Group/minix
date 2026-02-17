@@ -1,0 +1,24 @@
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/ar.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/arscan.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/commands.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/dir.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/expand.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/file.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/function.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/getopt.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/hash.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/implicit.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/job.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/main.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/misc.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/read.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/remake.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/remote-cstms.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/rule.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/signame.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/strcache.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/variable.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/variable.h \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/vmsfunctions.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/vmsjobs.c \
+     /home/donz/minix/tools/gmake/../../external/gpl2/gmake/dist/vpath.c

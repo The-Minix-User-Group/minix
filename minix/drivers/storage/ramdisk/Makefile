@@ -28,12 +28,12 @@ RAMDISK_DEFINES= \
 PROTO=			proto
 
 # Common to all architectures
-ETC=			system.conf group ttys
+ETC=			system.conf group ttys build-id
 SYSTEM_CONF_SRC=	${NETBSDSRCDIR}/etc/system.conf
 .if ${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv"
 SYSTEM_CONF_SRC=	${NETBSDSRCDIR}/minix/releasetools/riscv64/system.conf
 .endif
-EXTRA=			rc
+EXTRA=			rc pfetch neofetch
 PROTO_FILES=		proto.common.etc
 PROTO_FILES+=		proto.common.dynamic
 PROGRAMS=		# defined
@@ -49,6 +49,8 @@ PROGRAMS+=		ls
 dir.ls:=	bin/ls
 PROGRAMS+=		ps
 dir.ps:=	bin/ps
+PROGRAMS+=		uname
+dir.uname:=	usr.bin/uname
 PROGRAMS+=		input
 dir.input:=	minix/servers/input
 PROGRAMS+=		loadramdisk
@@ -161,6 +163,18 @@ PROGSUFFIX:=
 etc/${etc}: ${SYSTEM_CONF_SRC}
 	mkdir -p ${.OBJDIR}/etc
 	${INSTALL} $> $@
+.elif ${etc} == "build-id"
+etc/${etc}: .PHONY
+	mkdir -p ${.OBJDIR}/etc
+	@set -e; \
+	branch=unknown; \
+	commit=unknown; \
+	if command -v git >/dev/null 2>&1; then \
+		branch=`cd ${NETBSDSRCDIR} && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown`; \
+		commit=`cd ${NETBSDSRCDIR} && git rev-parse --short=12 HEAD 2>/dev/null || echo unknown`; \
+	fi; \
+	echo "branch=$$branch commit=$$commit arch=${MACHINE_ARCH}" > $@.tmp; \
+	mv $@.tmp $@
 .else
 etc/${etc}: ${NETBSDSRCDIR}/etc/${etc}
 	mkdir -p ${.OBJDIR}/etc

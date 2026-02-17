@@ -1,0 +1,2 @@
+tdir_elf64lriscv=riscv64-elf32-minix
+tdir_elf32lriscv=riscv64-elf32-minix

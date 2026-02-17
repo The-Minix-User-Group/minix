@@ -1,0 +1,304 @@
+#!/bin/sh
+#
+# neofetch-like output for MINIX ramdisk.
+# Keep dependencies minimal: only shell builtins plus commands
+# already present in the ramdisk base profile.
+#
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+
+os_name="MINIX"
+os_release="unknown"
+arch="unknown"
+host_name="unknown"
+kernel_build="unknown"
+uptime_human="unknown"
+rootdev="ram"
+boot_mode="diskless"
+rootfs_src="unknown"
+rootfs_type="unknown"
+procfs_state="not mounted"
+disk_c0d0="absent"
+memline="unavailable (/proc not mounted)"
+srv_count="n/a"
+srv_total="n/a"
+srv_active="n/a"
+srv_source="auto"
+core_state="unknown"
+core_missing="n/a"
+build_id="n/a"
+
+format_uptime() {
+	secs="$1"
+	days=$((secs / 86400))
+	hours=$(((secs % 86400) / 3600))
+	mins=$(((secs % 3600) / 60))
+
+	if [ "$days" -gt 0 ]; then
+		uptime_human="${days}d ${hours}h ${mins}m"
+	elif [ "$hours" -gt 0 ]; then
+		uptime_human="${hours}h ${mins}m"
+	else
+		uptime_human="${mins}m"
+	fi
+}
+
+probe_services_procfs() {
+	svc_seen=""
+	srv_count_num=0
+
+	[ -d /proc/service ] || return 1
+
+	for svc_path in /proc/service/*; do
+		[ -e "$svc_path" ] || continue
+		svc="${svc_path##*/}"
+		case " $svc_seen " in
+		*" $svc "*) ;;
+		*)
+			svc_seen="$svc_seen $svc"
+			srv_count_num=$((srv_count_num + 1))
+			;;
+		esac
+	done
+
+	[ "$srv_count_num" -gt 0 ] || return 1
+
+	srv_source="procfs"
+	srv_count="$srv_count_num"
+	srv_active="$srv_count_num"
+	srv_total="$srv_count_num"
+
+	core_required="rs vm pm sched vfs ds memory mib pfs procfs init"
+	core_missing_list=""
+	for svc in $core_required; do
+		if [ "$svc" = "init" ]; then
+			if [ -r /proc/1/psinfo ] || [ -d /proc/1 ]; then
+				:
+			else
+				core_missing_list="$core_missing_list $svc"
+			fi
+			continue
+		fi
+
+		case " $svc_seen " in
+		*" $svc "*) ;;
+		*) core_missing_list="$core_missing_list $svc" ;;
+		esac
+	done
+
+	if [ -z "$core_missing_list" ]; then
+		core_state="ok"
+		core_missing="none"
+	else
+		core_state="missing"
+		core_missing="${core_missing_list# }"
+	fi
+
+	return 0
+}
+
+if uname_s="$(uname -s 2>/dev/null)"; then
+	os_name="$uname_s"
+fi
+
+if uname_r="$(uname -r 2>/dev/null)"; then
+	os_release="$uname_r"
+fi
+
+if uname_m="$(uname -m 2>/dev/null)"; then
+	arch="$uname_m"
+elif arch_val="$(sysenv arch 2>/dev/null)"; then
+	arch="$arch_val"
+elif arch_val="$(sysenv machine 2>/dev/null)"; then
+	arch="$arch_val"
+fi
+
+if uname_n="$(uname -n 2>/dev/null)"; then
+	host_name="$uname_n"
+fi
+
+if uname_v="$(uname -v 2>/dev/null)"; then
+	kernel_build="$uname_v"
+fi
+
+if rootdev_val="$(sysenv rootdevname 2>/dev/null)"; then
+	rootdev="/dev/$rootdev_val"
+fi
+
+if [ -r /proc/meminfo ]; then
+	procfs_state="mounted"
+	if ! IFS= read -r memline < /proc/meminfo; then
+		memline="unavailable"
+	fi
+fi
+
+if [ -e /dev/c0d0 ]; then
+	disk_c0d0="present"
+fi
+
+if [ -r /proc/mounts ]; then
+	while IFS=" " read -r mnt_src mnt_path mnt_type _rest; do
+		if [ "$mnt_path" = "/" ]; then
+			rootfs_src="$mnt_src"
+			rootfs_type="$mnt_type"
+			break
+		fi
+	done < /proc/mounts
+fi
+
+if [ "$rootfs_src" = "unknown" ] && command -v mount >/dev/null 2>&1; then
+	while IFS= read -r mline; do
+		case "$mline" in
+		*" is mounted on /")
+			rootfs_src="${mline%% is mounted on *}"
+			break
+			;;
+		*" on / type "*)
+			rootfs_src="${mline%% on / type *}"
+			rootfs_type="${mline##* on / type }"
+			break
+			;;
+		esac
+	done <<EOF
+$(mount 2>/dev/null)
+EOF
+fi
+
+if [ -r /proc/uptime ]; then
+	if IFS= read -r uptime_line < /proc/uptime; then
+		set -- $uptime_line
+		uptime_secs="${1%.*}"
+		case "$uptime_secs" in
+		""|*[!0-9]*)
+			:
+			;;
+		*)
+			format_uptime "$uptime_secs"
+			;;
+		esac
+	fi
+fi
+
+if [ -r /etc/build-id ]; then
+	if IFS= read -r build_id_val < /etc/build-id; then
+		if [ -n "$build_id_val" ]; then
+			build_id="$build_id_val"
+		fi
+	fi
+fi
+
+if [ "$disk_c0d0" = "present" ]; then
+	boot_mode="with-disk"
+fi
+case "$rootdev" in
+/dev/ram*|imgrd|ram)
+	;;
+*)
+	boot_mode="with-disk"
+	;;
+esac
+
+# Service probing defaults to procfs-based auto mode. This avoids the heavier
+# ps-based probing path unless explicitly requested.
+service_probe="${NEOFETCH_SERVICE_PROBE:-auto}"
+case "$service_probe" in
+auto|procfs)
+	if ! probe_services_procfs; then
+		srv_source="procfs-unavailable"
+	fi
+	;;
+ps)
+	if command -v ps >/dev/null 2>&1; then
+		ps_blob="$(ps -ax 2>/dev/null)"
+		srv_source="ps"
+		svc_known="rs vm pm sched vfs ds tty memory mib pfs mfs init procfs"
+		svc_seen=""
+		srv_count_num=0
+
+		while IFS= read -r line || [ -n "$line" ]; do
+			cmd=""
+			for tok in $line; do
+				cmd="$tok"
+			done
+			[ -z "$cmd" ] && continue
+			cmd="${cmd##*/}"
+
+			case " $svc_known " in
+			*" $cmd "*)
+				case " $svc_seen " in
+				*" $cmd "*) ;;
+				*)
+					svc_seen="$svc_seen $cmd"
+					srv_count_num=$((srv_count_num + 1))
+					;;
+				esac
+				;;
+			esac
+		done <<EOF
+$ps_blob
+EOF
+
+		# Treat very small counts as unreliable: ps output on early boot /
+		# noisy procfs states may be partial.
+		if [ "$srv_count_num" -ge 5 ]; then
+			srv_count="$srv_count_num"
+			srv_active="$srv_count_num"
+			srv_total="$srv_count_num"
+
+			core_required="rs vm pm sched vfs ds memory mib pfs procfs init"
+			core_missing_list=""
+			for svc in $core_required; do
+				case " $svc_seen " in
+				*" $svc "*) ;;
+				*) core_missing_list="$core_missing_list $svc" ;;
+				esac
+			done
+
+			if [ -z "$core_missing_list" ]; then
+				core_state="ok"
+				core_missing="none"
+			else
+				core_state="missing"
+				core_missing="${core_missing_list# }"
+			fi
+		else
+			srv_source="ps-partial"
+		fi
+	else
+		srv_source="ps-unavailable"
+	fi
+	;;
+off|disabled|none)
+	srv_source="off"
+	;;
+*)
+	srv_source="off"
+	;;
+esac
+
+if [ "$rootfs_src" = "unknown" ] && [ -n "$rootdev" ]; then
+	rootfs_src="$rootdev"
+fi
+
+echo "  ____                       _____     _       _"
+echo " |  _ \\  ___  _ __  ____    |  ___|__ | |_ ___| |__"
+echo " | | | |/ _ \\| '_ \\|_  /____| |_ / _ \\| __/ __| '_ \\"
+echo " | |_| | (_) | | | |/ /_____|  _| (_) | || (__| | | |"
+echo " |____/ \\___/|_| |_/___|    |_|  \\___/ \\__\\___|_| |_|"
+echo "                Donz Fetch"
+echo
+echo "OS:       $os_name $os_release"
+echo "Host:     $host_name"
+echo "Kernel:   $kernel_build"
+echo "Arch:     $arch"
+echo "Rootdev:  $rootdev"
+echo "BootMode: $boot_mode"
+echo "RootFS:   $rootfs_src ($rootfs_type)"
+echo "ProcFS:   $procfs_state"
+echo "Disk0:    /dev/c0d0 ($disk_c0d0)"
+echo "Uptime:   $uptime_human"
+echo "Services: $srv_count (active: $srv_active / total: $srv_total, src: $srv_source)"
+echo "CoreSvc:  $core_state"
+echo "Missing:  $core_missing"
+echo "BuildID:  $build_id"
+echo "Mem(raw): $memline"

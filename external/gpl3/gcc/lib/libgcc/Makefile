@@ -6,7 +6,8 @@ SUBDIR+=	libgcc
 
 .if defined(__MINIX) && ${MKGCCCMDS} == "yes"
 
-.if ${MKPIC} != "no" || ${MACHINE_ARCH} == "earm"
+.if ${MKPIC} != "no" || ${MACHINE_ARCH} == "earm" || \
+    ${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv"
 SUBDIR+=	libgcc_eh
 .endif
 
@@ -15,6 +16,8 @@ SUBDIR+=	libgcc_s
 .else
 .if ${MKPIC} != "no"
 SUBDIR+=	libgcc_eh libgcc_s
+.elif ${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv"
+SUBDIR+=	libgcc_eh
 .endif
 
 SUBDIR+=	libgcov

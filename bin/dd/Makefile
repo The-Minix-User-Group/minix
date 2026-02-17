@@ -9,6 +9,10 @@ SRCS=	args.c conv.c dd.c misc.c position.c
 DPADD+=	${LIBUTIL}
 LDADD+=	-lutil
 
+.if ${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv"
+LDFLAGS+= -Wl,--defsym,__global_pointer$$=_gp
+.endif
+
 .ifdef SMALLPROG
 CPPFLAGS+=	-DNO_CONV -DNO_MSGFMT -DNO_IOFLAG -DSMALL
 .else

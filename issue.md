@@ -1,36 +1,43 @@
 # MINIX RISC-V Port Issues / MINIX RISC-V 移植问题清单
 
 **Date / 日期**: 2026-02-16  
-**Version / 版本**: 1.15
+**Version / 版本**: 1.25
 **Scope / 范围**: RISC-V 64-bit port, evidence includes file/line references.
 
 本文件记录 RISC-V 64 位移植的具体问题与证据（含文件/行号），并给出修复建议。  
 This file records concrete issues in the RISC-V 64-bit port with evidence and suggested fixes.
 
-**复核说明**：2026-02-16 完成启动链路稳定化验证；QEMU 可进入交互 shell 并通过 `echo SMOKE_OK`。同日补充代码/日志复核问题。  
-**Review note**: 2026-02-16 validated boot-path stabilization; QEMU reaches interactive shell and passes `echo SMOKE_OK`. Additional code/log review findings were added the same day.
+**复核说明**：2026-02-16 完成启动链路稳定化验证；QEMU 可进入交互 shell 并通过 `echo SMOKE_OK`。同日补充代码/日志复核问题，并完成一轮 RS P0 端点映射防护加固（定向编译 + QEMU 启动复测），随后在带盘 smoke 中确认 `virtio_blk_mmio` 可正常初始化。
+**Review note**: 2026-02-16 validated boot-path stabilization; QEMU reaches interactive shell and passes `echo SMOKE_OK`. Additional code/log review findings were added the same day, followed by an RS P0 endpoint-mapping hardening pass (targeted build + QEMU boot revalidation), and a with-disk smoke that confirms `virtio_blk_mmio` initialization.
 
-**编号说明 / Numbering note**: 问题编号采用历史保留，不保证连续；已归档到 “Fixed in Current Working Tree” 的历史编号包括 `#1`, `#2`, `#3`, `#10`, `#12`, `#24`。  
-Issue IDs are historically stable and intentionally non-contiguous; archived IDs moved to “Fixed in Current Working Tree” include `#1`, `#2`, `#3`, `#10`, `#12`, `#24`.
+**编号说明 / Numbering note**: 问题编号采用历史保留，不保证连续；已归档到 “Fixed in Current Working Tree” 的历史编号包括 `#1`, `#2`, `#3`, `#10`, `#12`, `#24`, `#25`。  
+Issue IDs are historically stable and intentionally non-contiguous; archived IDs moved to “Fixed in Current Working Tree” include `#1`, `#2`, `#3`, `#10`, `#12`, `#24`, `#25`.
 
 ## Repair Priority / 修复优先级（从重到轻）
 
-- P0 / 最高优先（先修，内存安全与核心控制面稳定性）:
-  1) `#22` RS `free_slot()` endpoint unset 时越界写 `rproc_ptr[]`
-  2) `#21` RS endpoint 校验接受 task slot，导致 `rproc_ptr[]` 越界访问
-  3) `#20` RS `do_upd_ready()` 异常消息路径空指针解引用
-  4) `#18` RS `do_init_ready()` / `catch_boot_init_ready()` 异常路径空指针解引用
-  5) `#23` RISC-V `vm_memset` 无故障恢复，可能把可恢复故障升级为 kernel panic
+- P0 / 最高优先（含新发现）:
+  1) `[DONE]` `#27` VFS magic-grant 失败路径缺少 revoke，可能累积 grant 资源泄漏
+  2) `[DONE]` `#22` RS `free_slot()` endpoint unset 时越界写 `rproc_ptr[]`
+  3) `[DONE]` `#21` RS endpoint 校验接受 task slot，导致 `rproc_ptr[]` 越界访问
+  4) `[DONE]` `#20` RS `do_upd_ready()` 异常消息路径空指针解引用
+  5) `[DONE]` `#18` RS `do_init_ready()` / `catch_boot_init_ready()` 异常路径空指针解引用
+  6) `[DONE]` `#23` RISC-V `vm_memset` 无故障恢复，可能把可恢复故障升级为 kernel panic
 - P1 / 高优先（高概率影响功能正确性）:
   1) `#16` VFS 服务端点“先写后验”可能弱化代际校验
   2) `#17` 启动期 safecopy 噪声错误闭环（定位根因并降噪）
   3) `A3` 含盘场景 `minix-service`/`virtio_blk_mmio` SIGSEGV
-  4) `#25` 内建 GCC 不支持 `-mabi=lp64d`，阻断部分 GCC-only 增量构建
+  4) `[DONE]` `#25` 内建 GCC 不支持 `-mabi=lp64d`，阻断部分 GCC-only 增量构建
+  5) `[DONE]` `#26` RS `do_up`/`do_update` 失败路径未回收 slot 资源，`RSS_COPY` 可触发可重复内存泄漏
+  6) `[DONE]` `#28` RS `init_state_data` 在多个错误出口缺少内存回收
+  7) `[DONE]` `#29` safecopy 首错分类规则过宽，存在门禁假阴性风险
+  8) `[DONE]` `#32` multi-smoke 缺少运行时命令探针，易漏报“能启动但功能退化”
 - P2 / 中优先（功能完备性与平台能力）:
   1) `A2` RV64 动态装载链路（`MKPIC`/`ld.elf_so`）补齐与验证
   2) `#15` RISC-V SMP 核心实现缺失
   3) `#13` `phys_copy` fault handler 注册缺失
   4) `#14` DT 多段内存/保留区解析补齐
+  5) `[DONE]` `#30` multi-smoke 默认复用磁盘镜像，削弱跨次可复现性
+  6) `[DONE]` `#31` smoke/repro 门禁对退出语义与宿主可移植性校验不足
 - P3 / 低优先（可维护性与技术债）:
   1) `#19` kernel/VM/RS 无条件调试日志收敛
   2) `#11` `minimal_kernel` RISC-V 适配
@@ -98,7 +105,7 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
       Evidence: `minix/servers/vfs/exec.c:306`
     4) Keep the test binary minimal (single `main`, no threads) to isolate VM/exec issues. / 测试程序保持最小化以隔离 VM/exec 问题。
 
-### A3) userland `memset` stack-top SIGSEGV (ramdisk profile mitigated; with-disk virtio path pending recheck) / 用户态 `memset` 栈顶 SIGSEGV（ramdisk 轮廓已缓解；含盘 virtio 路径待复核）
+### A3) userland `memset` stack-top SIGSEGV (mitigated and smoke-validated in both diskless/with-disk profiles) / 用户态 `memset` 栈顶 SIGSEGV（已缓解，并在无盘/带盘 smoke 验证）
 - Evidence / 证据:
   - `./minix/tests/riscv64/run_tests.sh all` (2026-01-31, with-disk profile) fails the VirtIO block I/O smoke test; running
     `/sbin/minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0` triggers SIGSEGV.  
@@ -126,9 +133,10 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - 2026-02-16 QEMU re-test (ramdisk profile) after rebuilding libc/ramdisk/memory:
     - `ps -aux` completes and returns shell prompt, no SIGSEGV.
     - `cat /proc/meminfo` returns data successfully (still shows one recoverable safecopy fallback; tracked in `#17`).
-- Next steps / 下一步:
-  - Re-run with-disk profile (`virtio_blk_mmio` + service up path) to verify whether A3 is fully closed or narrowed to A4/config profile.
-  - If with-disk still crashes, capture fresh PC/SP and compare against current `memset` symbols to separate remaining causes from the resolved recursion bug.
+  - 2026-02-16 QEMU re-test (with-disk profile using `-i /tmp/minix-smoke-disk.img`):
+    `virtio-blk-mmio` reports capacity and initialization, no `minix-service` SIGSEGV signature observed.
+    Log: `/tmp/qemu-smoke-disk.log`
+  - Status / 状态: fixed + smoke-validated for current bring-up scope; keep long-run stress/regression under P1 follow-up.
 
 ### A4) virtio_blk_mmio startup failure in diskless QEMU smoke (configuration-driven) / 无盘 QEMU 冒烟中 virtio_blk_mmio 启动失败（配置驱动）
 - Evidence / 证据:
@@ -147,7 +155,10 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
 
 ## Critical / 严重
 
-- None confirmed in current workspace; former Critical #1 moved to Fixed. / 当前工作区未确认有严重问题，原 Critical #1 已移至 Fixed。
+- Newly confirmed: `#27` (VFS grant leak on early `EINVAL` error paths).  
+  新确认：`#27`（VFS 在 `EINVAL` 早退路径可能泄漏 grant）。  
+  Detailed evidence and fix suggestions are documented in issue entry `#27` below.  
+  详细证据与修复建议见下方 `#27` 条目。
 
 ## Major / 重要
 
@@ -264,9 +275,10 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Add `rp == NULL` checks before dereference in both paths and return `EINVAL`/ignore unexpected senders.
   - In boot catch path, validate source endpoint against expected initializing set before accepting `RS_INIT`.
 - Update / 进展:
-  - Added strict source validation via `rs_isokservice()` before dereferencing in both `do_init_ready()` and `catch_boot_init_ready()`, with explicit invalid-source handling. Runtime/QEMU validation is still required.
-    已在 `do_init_ready()` 与 `catch_boot_init_ready()` 中通过 `rs_isokservice()` 先做严格来源校验，再解引用；异常来源路径已显式处理。仍需运行时/QEMU 复验。
+  - Added strict source validation via `rs_isokservice()` before dereferencing in both `do_init_ready()` and `catch_boot_init_ready()`, with explicit invalid-source handling. Runtime/QEMU smoke validation has completed.
+    已在 `do_init_ready()` 与 `catch_boot_init_ready()` 中通过 `rs_isokservice()` 先做严格来源校验，再解引用；异常来源路径已显式处理。运行时/QEMU 冒烟复验已完成。
     Evidence: `minix/servers/rs/request.c`, `minix/servers/rs/main.c`, `minix/servers/rs/utility.c`
+  - Status / 状态: fixed + smoke-validated on 2026-02-16.
 
 ### 20) RS update-ready path may dereference null slot on unexpected RS_LU_PREPARE / RS 更新就绪路径在异常 RS_LU_PREPARE 下可能空指针解引用
 - Evidence / 证据:
@@ -281,9 +293,13 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Validate `who_p` binding and `rp != NULL` before any dereference.
   - Reject senders that do not match `rupdate.curr_rpupd->rp` with `EINVAL` and keep RS running.
 - Update / 进展:
-  - `do_upd_ready()` now validates service endpoint binding using `rs_isokservice()` before touching `rproc_ptr[]`/`rp`, so malformed or stale senders are rejected safely. Runtime/QEMU validation is still required.
-    `do_upd_ready()` 已在访问 `rproc_ptr[]`/`rp` 前使用 `rs_isokservice()` 校验端点绑定，畸形或陈旧来源会被安全拒绝。仍需运行时/QEMU 复验。
+  - `do_upd_ready()` now validates service endpoint binding using `rs_isokservice()` before touching `rproc_ptr[]`/`rp`, so malformed or stale senders are rejected safely. Runtime/QEMU smoke validation has completed.
+    `do_upd_ready()` 已在访问 `rproc_ptr[]`/`rp` 前使用 `rs_isokservice()` 校验端点绑定，畸形或陈旧来源会被安全拒绝。运行时/QEMU 冒烟复验已完成。
     Evidence: `minix/servers/rs/request.c`, `minix/servers/rs/utility.c`
+  - Hardened live-update init-done probes: `RUPDATE_IS_VM_INIT_DONE()` / `RUPDATE_IS_RS_INIT_DONE()` now go through `rs_service_flag_is_set()`, preventing null-deref when VM/RS mapping is temporarily unavailable during update sequencing.
+    补强 live update 的 init-done 判定：`RUPDATE_IS_VM_INIT_DONE()` / `RUPDATE_IS_RS_INIT_DONE()` 已改为经 `rs_service_flag_is_set()` 查询，避免在更新编排阶段 VM/RS 映射暂不可用时发生空指针解引用。
+    Evidence: `minix/servers/rs/const.h`, `minix/servers/rs/utility.c`, `minix/servers/rs/update.c`
+  - Status / 状态: fixed + smoke-validated on 2026-02-16.
 
 ### 21) RS endpoint validation accepts task numbers, enabling out-of-bounds `rproc_ptr[]` access / RS 端点校验接受任务号，可能导致 `rproc_ptr[]` 越界访问
 - Evidence / 证据:
@@ -301,9 +317,18 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Introduce a strict service-endpoint validator (`0 <= proc < NR_PROCS`) for all `rproc_ptr[]` indexing paths.
   - Keep task-range acceptance only in paths that never index process-slot arrays.
 - Update / 进展:
-  - Introduced `rs_isokservice()` (`0 <= proc < NR_PROCS`, mapping exists) and switched `rproc_ptr[]` indexing paths in RS main/signal/init/update handling to this strict validator, preventing negative-index task-slot access. Endpoint-generation hard match is intentionally not enforced in boot catch path due startup endpoint encoding differences. Runtime/QEMU validation is still required.
-    新增 `rs_isokservice()`（要求 `0 <= proc < NR_PROCS` 且映射存在），并将 RS main/signal/init/update 中访问 `rproc_ptr[]` 的路径切换为严格校验，阻断 task slot 负索引。考虑启动期 endpoint 编码差异，boot catch 路径未强制端点代际硬匹配。仍需运行时/QEMU 复验。
+  - Introduced `rs_isokservice()` (`0 <= proc < NR_PROCS`, mapping exists) and switched `rproc_ptr[]` indexing paths in RS main/signal/init/update handling to this strict validator, preventing negative-index task-slot access. Endpoint-generation hard match is intentionally not enforced in boot catch path due startup endpoint encoding differences.
+    新增 `rs_isokservice()`（要求 `0 <= proc < NR_PROCS` 且映射存在），并将 RS main/signal/init/update 中访问 `rproc_ptr[]` 的路径切换为严格校验，阻断 task slot 负索引。考虑启动期 endpoint 编码差异，boot catch 路径未强制端点代际硬匹配。
     Evidence: `minix/servers/rs/utility.c`, `minix/servers/rs/main.c`, `minix/servers/rs/request.c`, `minix/servers/rs/proto.h`
+  - Added `rs_isokprocnr()` for strict endpoint-to-slot conversion (`0 <= proc < NR_PROCS`) and applied it to remaining internal `rproc_ptr[]` map access points (boot table mapping, child endpoint publish, slot swap/update remap, RS restart/LU handoff lookups).
+    新增 `rs_isokprocnr()` 作为严格 endpoint->slot 转换（`0 <= proc < NR_PROCS`），并覆盖剩余内部 `rproc_ptr[]` 访问点（boot 映射、子进程 endpoint 发布、slot swap/update 重映射、RS restart/LU 交接查找）。
+    Evidence: `minix/servers/rs/utility.c`, `minix/servers/rs/main.c`, `minix/servers/rs/manager.c`, `minix/servers/rs/update.c`
+  - 2026-02-16 quick revalidation: `nbmake-evbriscv64 -C minix/servers/rs` completed, and `timeout 120 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64` reached boot shell path (`MINIX 4.0.0`) without RS panic/SIGSEGV signature in `/tmp/qemu-rs-p0.log`.
+    2026-02-16 快速复验：`nbmake-evbriscv64 -C minix/servers/rs` 编译通过；`timeout 120 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64` 可走到 `MINIX 4.0.0` 启动 shell 路径，`/tmp/qemu-rs-p0.log` 未见 RS panic/SIGSEGV 特征。
+  - 2026-02-16 with-disk smoke revalidation: `timeout 140 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64 -i /tmp/minix-smoke-disk.img` reached shell path and did not reproduce RS endpoint/oob crash signatures.
+    2026-02-16 带盘冒烟复验：`timeout 140 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64 -i /tmp/minix-smoke-disk.img` 可走到 shell 路径，未复现 RS endpoint/oob 崩溃特征。
+    Log: `/tmp/qemu-smoke-disk.log`
+  - Status / 状态: fixed + smoke-validated on 2026-02-16.
 
 ### 22) RS can write out of bounds in `free_slot()` when endpoint is unset (-1) / `free_slot()` 在端点未设置(-1)时可能越界写
 - Evidence / 证据:
@@ -322,9 +347,13 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Initialize/normalize unset endpoints to `NONE` and treat them as “no mapping to clear”.
   - Add assertions/tests covering clone->create failure paths.
 - Update / 进展:
-  - `free_slot()` now bounds-checks endpoint-derived slots, clears mapping only when ownership matches (`rproc_ptr[slot] == rp`), and normalizes released endpoints to `NONE`, eliminating the `endpoint=-1` write-underflow path. Runtime/QEMU validation is still required.
-    `free_slot()` 现已对 endpoint 槽位做边界校验，仅在映射归属匹配（`rproc_ptr[slot] == rp`）时清理，并将释放后的 endpoint 归一为 `NONE`，消除 `endpoint=-1` 的下溢写路径。仍需运行时/QEMU 复验。
+  - `free_slot()` now bounds-checks endpoint-derived slots, clears mapping only when ownership matches (`rproc_ptr[slot] == rp`), and normalizes released endpoints to `NONE`, eliminating the `endpoint=-1` write-underflow path. Runtime/QEMU smoke validation has completed.
+    `free_slot()` 现已对 endpoint 槽位做边界校验，仅在映射归属匹配（`rproc_ptr[slot] == rp`）时清理，并将释放后的 endpoint 归一为 `NONE`，消除 `endpoint=-1` 的下溢写路径。运行时/QEMU 冒烟复验已完成。
     Evidence: `minix/servers/rs/manager.c`
+  - Closed related unset-endpoint write windows beyond `free_slot()`: `reincarnate_service()` no longer blindly indexes `rproc_ptr[]`, and remap paths (`swap_slot()` / `update_service()`) now validate endpoint slots before touching the mapping table.
+    进一步封堵 `free_slot()` 之外的未设 endpoint 写窗口：`reincarnate_service()` 不再盲目索引 `rproc_ptr[]`，并且 `swap_slot()` / `update_service()` 在修改映射表前都会先校验 endpoint 槽位。
+    Evidence: `minix/servers/rs/manager.c`, `minix/servers/rs/update.c`
+  - Status / 状态: fixed + smoke-validated on 2026-02-16.
 
 ### 23) RISC-V `vm_memset` lacks fault-recovery path and may panic kernel on user-memory write faults / RISC-V `vm_memset` 缺少故障恢复路径，用户内存写故障可能直接触发内核 panic
 - Evidence / 证据:
@@ -346,6 +375,39 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Add fault-aware RISC-V `phys_memset` semantics (fault address/status return or dedicated fault labels).
   - Extend RISC-V exception fault window handling to include memset recovery, matching i386/ARM behavior.
   - Ensure `vm_memset` can return `VMSUSPEND` on recoverable write faults.
+- Update / 进展:
+  - Added RISC-V memset fault-recovery plumbing in current working tree:
+    `phys_memset` now returns fault status, `exception.c` handles `in_memset`
+    windows (`memset_fault` / `memset_fault_in_kernel`), and `vm_memset`
+    wraps the memset loop with `catch_pagefaults` and returns `VMSUSPEND`
+    for recoverable user-mapping faults.
+    已在当前工作区补齐 RISC-V memset 故障恢复链路：`phys_memset` 返回故障状态，
+    `exception.c` 新增 `in_memset` 窗口处理（`memset_fault` / `memset_fault_in_kernel`），
+    `vm_memset` 通过 `catch_pagefaults` 包裹并在可恢复用户映射故障时返回 `VMSUSPEND`。
+  - Evidence: `minix/kernel/arch/riscv64/phys_copy.S`,
+    `minix/kernel/arch/riscv64/exception.c`,
+    `minix/kernel/arch/riscv64/memory.c`,
+    `minix/kernel/arch/riscv64/include/arch_proto.h`
+  - 2026-02-16 runtime smoke revalidation with GCC-built kernel:
+    `./minix/scripts/qemu-riscv64.sh -s -k minix/kernel/obj/kernel -B obj/destdir.evbriscv64`
+    and in-guest commands `ps -aux`, `cat /proc/meminfo`,
+    `/sbin/minix-service sysctl srv_status` all returned `RC=0`;
+    no kernel panic and no `SIGSEGV` signature were observed.
+    2026-02-16 使用 GCC 重建内核后完成运行复验：
+    `ps -aux`、`cat /proc/meminfo`、`minix-service sysctl srv_status`
+    均返回 `RC=0`，未出现 kernel panic 或 `SIGSEGV` 特征。
+    Log: `/tmp/qemu-p0-smoke.log`
+  - 2026-02-16 incremental + with-disk smoke revalidation:
+    `timeout 120 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64`
+    and
+    `timeout 140 ./minix/scripts/qemu-riscv64.sh -s -k obj.intrgcc/minix/kernel/kernel -B obj.intrgcc/destdir.evbriscv64 -i /tmp/minix-smoke-disk.img`
+    both reached shell path with no kernel panic/SIGSEGV signature.
+    Log: `/tmp/qemu-smoke-incremental.log`, `/tmp/qemu-smoke-disk.log`
+  - Status / 状态: fixed + smoke-validated for current bring-up scope on 2026-02-16.
+  - Optional hardening backlog / 可选加固待办:
+    keep targeted fault-injection coverage to prove `VMSUSPEND` recovery
+    under intentional user-memory write faults.
+    保留定向故障注入验证，以确认刻意构造写缺页时可稳定走 `VMSUSPEND` 恢复路径。
 
 ### 24) In-tree RISC-V linker cannot handle `R_RISCV_RELAX`, blocking incremental rebuilds (mitigated) / in-tree RISC-V 链接器不支持 `R_RISCV_RELAX`，阻断增量重建（已缓解）
 - Evidence / 证据:
@@ -386,6 +448,160 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Normalize RISC-V ABI flag selection for in-tree GCC capability (e.g., `-mabi=lp64` fallback).
   - Add compiler capability probing and emit actionable diagnostics when ABI flags are unsupported.
   - Keep per-component overrides documented until GCC flag baseline is unified.
+- Update / 进展:
+  - Default riscv64 arch flags in `share/mk/bsd.own.mk` are now aligned to the
+    validated in-tree GCC baseline:
+    `RISCV_ARCH_FLAGS?= -march=RV64IMAFD -mcmodel=medany`
+    (replacing default `-march=rv64gc -mabi=lp64d`).
+    `share/mk/bsd.own.mk` 的 riscv64 默认编译参数已收敛为当前内建 GCC
+    可用基线：`-march=RV64IMAFD -mcmodel=medany`
+    （替换原默认 `-march=rv64gc -mabi=lp64d`）。
+  - Verification:
+    `nbmake -m share/mk ... -V RISCV_ARCH_FLAGS` now reports
+    `-march=RV64IMAFD -mcmodel=medany`, and raw (non-wrapper) rebuild of
+    `minix/servers/mib` with `ACTIVE_CC=gcc` succeeds.
+    验证：`nbmake -m share/mk ... -V RISCV_ARCH_FLAGS` 现返回
+    `-march=RV64IMAFD -mcmodel=medany`；且在 non-wrapper 路径下
+    `ACTIVE_CC=gcc` 的 `minix/servers/mib` 重编通过。
+- Status / 状态:
+  - Fixed in working tree on 2026-02-17.
+    已在当前工作树修复（2026-02-17）。
+
+### 26) RS slot/exec cleanup is missing on several `do_up`/`do_update` error paths, causing repeatable `RSS_COPY` memory leaks / RS 在若干 `do_up`/`do_update` 失败路径缺少 slot/exec 回收，`RSS_COPY` 可触发可重复内存泄漏
+- Evidence / 证据:
+  - `do_up()` allocates a slot then returns directly on duplicate checks without `free_slot()`:
+    `minix/servers/rs/request.c:31`, `minix/servers/rs/request.c:64`,
+    `minix/servers/rs/request.c:71-75`, `minix/servers/rs/request.c:76-80`,
+    `minix/servers/rs/request.c:81-86`.
+  - `do_update()` regular-update path allocates a slot and returns directly when `init_slot()` fails, also without `free_slot()`:
+    `minix/servers/rs/request.c:725-736`.
+  - `init_slot()` may load and retain an in-memory executable copy (`r_exec`) when `RSS_COPY` is requested:
+    `minix/servers/rs/manager.c:1629-1661`, `minix/servers/rs/manager.c:1372-1403`.
+  - The normal cleanup path for this memory is `free_slot()->free_exec()`:
+    `minix/servers/rs/manager.c:2100-2114`, `minix/servers/rs/manager.c:1424-1454`.
+- Impact / 影响:
+  - Repeated `RS_UP`/`RS_UPDATE` requests that fail after `init_slot()` can leak executable-copy heap buffers in RS.
+  - 典型可复现路径是：带 `RSS_COPY` 的请求在重复标签/设备号检查处失败，导致 `r_exec` 未释放并被下一次 slot 复用覆盖，形成长期泄漏。
+  - This is a control-plane resource-exhaustion risk (RS heap growth / eventual ENOMEM), degrading service-management reliability.
+- Suggested fix / 修复建议:
+  - In `do_up()` and `do_update()`, add a unified error-exit path that always calls `free_slot(rp/new_rp)` when a slot has been initialized but not successfully created/published.
+  - Clear `r_exec` ownership deterministically on all post-`init_slot()` failure branches (including duplicate checks).
+  - Add a regression test that issues repeated failing `RSS_COPY` requests and asserts no net RS memory growth.
+- Update / 进展:
+  - `do_up()` now has a unified cleanup exit for post-`init_slot()` duplicate
+    failures, and calls `free_slot(rp)` before returning `EBUSY`.
+    `do_up()` 现已为 `init_slot()` 之后的重复校验失败路径统一走 cleanup，
+    返回 `EBUSY` 前会执行 `free_slot(rp)`。
+  - `do_update()` regular-update path now frees the allocated slot when
+    `init_slot(new_rp, ...)` fails, and unlinks `rp->r_new_rp/new_rp->r_old_rp`
+    if `create_service(new_rp)` fails.
+    `do_update()` 的常规更新路径在 `init_slot(new_rp, ...)` 失败时会释放已分配
+    slot；若 `create_service(new_rp)` 失败则会回滚 `rp->r_new_rp/new_rp->r_old_rp`
+    链接，避免悬挂引用。
+  - Evidence / 证据: `minix/servers/rs/request.c`
+- Status / 状态:
+  - Fixed in working tree; targeted rebuild passed:
+    `nbmake-evbriscv64 -C minix/servers/rs`.
+    已在当前工作树修复；定向重编译通过：
+    `nbmake-evbriscv64 -C minix/servers/rs`。
+
+### 27) VFS magic-grant error paths can leak grants on early `EINVAL` returns / VFS magic grant 错误路径在 `EINVAL` 早退时可能泄漏 grant
+- Evidence / 证据:
+  - `req_getdents_actual()` creates a magic/direct grant at
+    `minix/servers/vfs/request.c:343-347` but returns `EINVAL` at
+    `minix/servers/vfs/request.c:359-361` without revoking it.
+  - `req_readwrite_actual()` creates a magic grant at
+    `minix/servers/vfs/request.c:902-905` but returns `EINVAL` at
+    `minix/servers/vfs/request.c:912-913` without revoking it.
+- Impact / 影响:
+  - Repeated large-offset requests on 32-bit-off_t filesystems can accumulate
+    unreleased grants and eventually exhaust grant resources.
+  - 这属于可积累资源泄漏，可能在长时运行下放大为系统级不稳定。
+- Suggested fix / 修复建议:
+  - Reorder checks so offset capability is validated before grant creation, or
+    unify exits with a `revoke-on-error` cleanup path.
+  - Add a regression that repeatedly triggers these `EINVAL` branches and
+    verifies grant-table stability.
+- Update / 进展:
+  - `req_getdents_actual()` and `req_readwrite_actual()` now validate
+    64-bit offset capability before grant creation, removing the early-return
+    grant leak path. Evidence: `minix/servers/vfs/request.c`.
+    `req_getdents_actual()` 与 `req_readwrite_actual()` 已在创建 grant 前完成
+    64 位 offset 能力校验，消除 `EINVAL` 早退泄漏路径。证据：`minix/servers/vfs/request.c`。
+- Status / 状态:
+  - Fixed in working tree; targeted rebuild passed:
+    `nbmake-evbriscv64 -C minix/servers/vfs`.
+    已在当前工作树修复；定向重编译通过：
+    `nbmake-evbriscv64 -C minix/servers/vfs`。
+
+### 28) RS `init_state_data()` leaks heap buffers on multiple error exits / RS `init_state_data()` 在多个错误出口泄漏堆内存
+- Evidence / 证据:
+  - `eval_addr` is allocated at `minix/servers/rs/manager.c:199`; if
+    `sys_datacopy` fails at `minix/servers/rs/manager.c:207-209`, the function
+    returns without freeing it.
+  - `ipcf_els_buff` is allocated at `minix/servers/rs/manager.c:228`; failures at
+    `minix/servers/rs/manager.c:236-238` and `minix/servers/rs/manager.c:263-264`
+    return directly without releasing allocated buffers.
+- Impact / 影响:
+  - Failed/aborted update-prepare attempts can cause repeatable RS heap growth.
+  - 会降低 RS 长时间运行可靠性，且在压力场景下可能演变为 `ENOMEM`。
+- Suggested fix / 修复建议:
+  - Introduce a single cleanup label for `init_state_data()` and free all
+    partially allocated state on every non-OK exit.
+  - Add an RS memory-regression test for repeated failing update-prepare calls.
+- Update / 进展:
+  - `init_state_data()` now uses a unified cleanup path for all error exits,
+    freeing partially allocated `eval_addr` / `ipcf_els_buff` and resetting
+    state-data fields before returning.
+    `init_state_data()` 已改为统一 cleanup 错误出口，失败时会释放
+    `eval_addr` / `ipcf_els_buff` 并重置状态字段。
+  - Follow-up hardening: when no eval/IPC-filter payload exists,
+    `dst_rs_state_data->size` now remains `0` (instead of always copying
+    `sizeof(struct rs_state_data)`), preventing unnecessary state-data grant
+    creation on no-state updates.
+    后续加固：当不存在 eval/IPC-filter 负载时，
+    `dst_rs_state_data->size` 现保持为 `0`
+    （不再无条件复制 `sizeof(struct rs_state_data)`），避免无状态更新
+    误创建 state-data grant。
+  - Evidence / 证据: `minix/servers/rs/manager.c`
+- Status / 状态:
+  - Fixed in working tree; targeted rebuild passed:
+    `nbmake-evbriscv64 -C minix/servers/rs`.
+    已在当前工作树修复；定向重编译通过：
+    `nbmake-evbriscv64 -C minix/servers/rs`。
+
+### 29) safecopy first-error triage rules are too broad and may cause false negatives / safecopy 首错分类规则过宽，可能造成假阴性
+- Evidence / 证据:
+  - `KNOWN_NOISE_RE` matches only generic error-code patterns
+    (`minix/tests/riscv64/safecopy_triage.py:25-30`).
+  - Classification accepts `acceptable_noise` if the first line matches those
+    patterns (`minix/tests/riscv64/safecopy_triage.py:94-121`), without
+    constraining caller/path/request context.
+- Impact / 影响:
+  - New regressions with reused error codes (but different fault semantics)
+    may be misclassified as acceptable, weakening gate trustworthiness.
+  - 这会降低 `#17` 的闭环质量，增加“门禁通过但真实回归存在”的风险。
+- Suggested fix / 修复建议:
+  - Tighten classification to `(error code + caller + request context)` instead
+    of error code only.
+  - Treat unknown context combinations as `potential_consistency_issue` by
+    default and require explicit allowlisting.
+- Update / 进展:
+  - `safecopy_triage.py` now uses allowlisted signatures that bind
+    `(error code + caller + direction)` and records
+    `first_safecopy_signature` in output.
+    `safecopy_triage.py` 现已改为基于
+    `(错误码 + 调用者 + 方向)` 的白名单签名，并在输出中记录
+    `first_safecopy_signature`。
+  - Unknown first-error contexts now default to
+    `potential_consistency_issue`.
+    未知首错上下文默认判定为 `potential_consistency_issue`。
+  - Evidence / 证据: `minix/tests/riscv64/safecopy_triage.py`
+- Status / 状态:
+  - Fixed in working tree; replay on existing smoke logs remains stable
+    (`acceptable_noise` for known boot fallback signatures).
+    已在当前工作树修复；用既有 smoke 日志回放结果稳定
+    （已知启动回退签名仍判定为 `acceptable_noise`）。
 
 ## Moderate / 中等
 
@@ -415,6 +631,139 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
 - Suggested fix / 修复建议:
   - Extend FDT parsing to handle reserved regions and multiple memory ranges, then plumb into `add_memmap`. / 扩展 FDT 解析以处理保留区与多段内存，并接入 `add_memmap`。
 
+### 30) `multi_smoke_gate.sh` reuses a persistent disk image by default, reducing run-to-run reproducibility / `multi_smoke_gate.sh` 默认复用持久磁盘镜像，削弱跨次可复现性
+- Evidence / 证据:
+  - Default disk image path is fixed at `/tmp/minix-smoke-gate.img`:
+    `minix/tests/riscv64/multi_smoke_gate.sh:26`.
+  - The script creates the image only if missing (`minix/tests/riscv64/multi_smoke_gate.sh:95-97`), so subsequent runs reuse prior state.
+- Impact / 影响:
+  - With-disk smoke outcomes can be affected by prior filesystem/device state,
+    making regressions harder to bisect and reproduce.
+  - 带盘冒烟结果可能受历史状态污染，降低门禁信号稳定性。
+- Suggested fix / 修复建议:
+  - Default to per-run fresh disk image (timestamp/tempfile), or add
+    `--fresh-disk` and make it default in gate mode.
+  - Keep explicit opt-in for persistent images only when doing long-running
+    stateful experiments.
+- Update / 进展:
+  - `multi_smoke_gate.sh` now creates a fresh with-disk image per round by
+    default (e.g. `...round1.img`, `...round2.img`), and uses a single shared
+    image only when `--reuse-disk` is explicitly set.
+    `multi_smoke_gate.sh` 现默认按轮次创建独立带盘镜像
+    （如 `...round1.img`、`...round2.img`）；仅在显式设置
+    `--reuse-disk` 时跨轮复用同一镜像。
+  - Evidence / 证据: `minix/tests/riscv64/multi_smoke_gate.sh`
+- Status / 状态:
+  - Fixed in working tree; verified with
+    `multi_smoke_gate.sh --rounds 2 --timeout 60` (4/4 passed) and per-round
+    image creation logs (`...round1.img`, `...round2.img`).
+    已在当前工作树修复；通过
+    `multi_smoke_gate.sh --rounds 2 --timeout 60`（4/4 通过）复验，
+    且日志确认按轮创建独立镜像（`...round1.img`、`...round2.img`）。
+
+### 31) smoke/repro gate scripts under-check runner semantics and host portability / smoke/repro 门禁脚本对执行语义与宿主可移植性校验不足
+- Evidence / 证据:
+  - `multi_smoke_gate.sh` masks QEMU runner status via `timeout ... || true`:
+    `minix/tests/riscv64/multi_smoke_gate.sh:109-110`, so timeout vs abnormal
+    exit are not explicitly distinguished.
+  - `repro_build_gate.sh` uses `nproc` directly for default jobs:
+    `minix/tests/riscv64/repro_build_gate.sh:15` (not portable to non-GNU hosts).
+  - Repro gate currently checks patch tracking (`git ls-files`) at
+    `minix/tests/riscv64/repro_build_gate.sh:61-64`, but lacks a direct
+    behavior probe that verifies relax-compat handling in the produced linker.
+- Impact / 影响:
+  - Some abnormal runs may be under-diagnosed, and host/environment drift can
+    reduce gate consistency across developer machines/CI.
+  - 门禁脚本可移植性不足，且“source-driven”验证仍有行为层盲点。
+- Suggested fix / 修复建议:
+  - Capture and classify timeout exit codes (`124`/`137`) vs other non-zero
+    exits explicitly in smoke logs.
+  - Add `nproc` fallback (`getconf _NPROCESSORS_ONLN` etc.).
+  - Add a minimal linker behavior probe for `R_RISCV_RELAX` compatibility in
+    addition to tracked-patch checks.
+- Update / 进展:
+  - `multi_smoke_gate.sh` now records runner exit semantics explicitly
+    (`rc=0`, timeout `124/137`, abnormal non-zero) instead of masking with
+    `|| true`.
+    `multi_smoke_gate.sh` 现显式记录执行语义（`rc=0`、timeout `124/137`、
+    异常非零），不再通过 `|| true` 吞掉状态。
+  - `repro_build_gate.sh` now uses portable CPU-count auto-detection
+    (`nproc`/`getconf`/`sysctl` fallback), and adds a best-effort
+    `R_RISCV_RELAX` linker behavior probe.
+    `repro_build_gate.sh` 已加入可移植并发核数探测
+    （`nproc`/`getconf`/`sysctl` 回退），并增加
+    `R_RISCV_RELAX` 链接行为探针（best-effort）。
+  - Relax probe now links candidate archives with
+    `ld -r --whole-archive ... --no-whole-archive`, so the check exercises
+    real archive members instead of potentially passing on an empty object.
+    relax 探针现使用
+    `ld -r --whole-archive ... --no-whole-archive`，
+    确保实际覆盖 archive 成员路径，避免“空对象误通过”。
+  - Evidence / 证据:
+    `minix/tests/riscv64/multi_smoke_gate.sh`,
+    `minix/tests/riscv64/repro_build_gate.sh`
+- Status / 状态:
+  - Fixed in working tree; `repro_build_gate.sh --objdir obj.intrgcc
+    --skip-tools --skip-distribution --smoke-rounds 1 --smoke-timeout 60
+    --without-disk` passes.
+    已在当前工作树修复；`repro_build_gate.sh --objdir obj.intrgcc
+    --skip-tools --skip-distribution --smoke-rounds 1 --smoke-timeout 60
+    --without-disk` 复验通过。
+  - Additional follow-up run:
+    `repro_build_gate.sh --objdir obj.intrgcc --skip-tools --skip-distribution
+    --smoke-rounds 1 --smoke-timeout 45 --without-disk` also passes
+    (`/tmp/minix-smoke-gate-20260217-000150`).
+    后续复验：
+    `repro_build_gate.sh --objdir obj.intrgcc --skip-tools --skip-distribution
+    --smoke-rounds 1 --smoke-timeout 45 --without-disk`
+    亦通过（`/tmp/minix-smoke-gate-20260217-000150`）。
+
+### 32) multi-smoke gate lacks runtime command probes and can miss “boot-only pass” regressions / multi-smoke 门禁缺少运行时命令探针，可能漏报“仅启动通过”型回归
+- Evidence / 证据:
+  - The previous `multi_smoke_gate.sh` focused on boot markers, fatal-signature grep,
+    safecopy triage, and with-disk virtio init markers, but did not run in-guest commands.
+    旧版 `multi_smoke_gate.sh` 重点在启动标记、fatal 签名 grep、safecopy 定性和
+    带盘 virtio 初始化标记，未执行来宾内命令探测。
+  - This created a blind spot where shell reachability could pass while runtime command
+    paths regressed.
+    这会导致“shell 可达但运行时命令路径退化”的场景漏检。
+- Impact / 影响:
+  - Gate sensitivity to boot failures was high, but runtime correctness coverage was insufficient.
+    对启动失败敏感，但运行时正确性覆盖不足。
+- Suggested fix / 修复建议:
+  - Add a runtime probe stage after each successful round to require:
+    `cat /proc/meminfo`, `ps -aux`, `minix-service sysctl srv_status` return success;
+    with-disk rounds additionally require `/dev/c0d0` to exist.
+    在每轮启动通过后增加运行时探针，要求：
+    `cat /proc/meminfo`、`ps -aux`、`minix-service sysctl srv_status` 成功返回；
+    带盘轮次额外要求 `/dev/c0d0` 存在。
+- Update / 进展:
+  - Added `minix/tests/riscv64/qemu_runtime_probe.py` to perform runtime command probes via PTY automation.
+    新增 `minix/tests/riscv64/qemu_runtime_probe.py`，通过 PTY 自动化执行运行时命令探测。
+  - `multi_smoke_gate.sh` now enables runtime probes by default and writes per-round probe logs:
+    `*.roundN.runtime.log`.
+    `multi_smoke_gate.sh` 已默认启用运行时探针，并输出每轮独立探针日志
+    `*.roundN.runtime.log`。
+  - Added runtime probe controls:
+    `--runtime-probe` / `--no-runtime-probe`,
+    `--runtime-timeout`, `--runtime-cmd-timeout`.
+    新增运行时探针控制项：
+    `--runtime-probe` / `--no-runtime-probe`、
+    `--runtime-timeout`、`--runtime-cmd-timeout`。
+  - Fixed runtime failure reporting in gate path (preserve non-zero probe RC in summary output).
+    修复了 runtime 失败分支返回码记录，summary 可正确显示 probe 非零退出码。
+- Evidence / 证据:
+  - `minix/tests/riscv64/qemu_runtime_probe.py`
+  - `minix/tests/riscv64/multi_smoke_gate.sh`
+- Status / 状态:
+  - Fixed in working tree; verified by:
+    `./minix/tests/riscv64/multi_smoke_gate.sh --rounds 1 --timeout 70 --runtime-timeout 70 --runtime-cmd-timeout 35`
+    with summary:
+    `Passed: 2`, `Failed: 0`, `Runtime passed: 2`, `Runtime failed: 0`.
+    Log root: `/tmp/minix-smoke-gate-20260217-070246`.
+    已在当前工作树修复并复验通过；日志目录：
+    `/tmp/minix-smoke-gate-20260217-070246`。
+
 ### 17) Repeated safecopy errors during boot are still noisy and unexplained / 启动期重复 safecopy 错误仍有噪声且原因未闭环
 - Evidence / 证据:
   - `/tmp/qemu-fix20.log:415` and `/tmp/qemu-fix20.log:1040` show `kcall safecopy err=...fc1c`.
@@ -433,6 +782,57 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - VFS now disables first-pass `CPF_TRY` for magic-grant read/stat/getdents/rdlink requests targeting mounts whose fs type is `procfs`, reducing fail-fast `EFAULT -> ERESTART` churn on `/proc/*` reads while keeping other filesystems unchanged.
     / VFS 已在目标文件系统类型为 `procfs` 的 magic grant 读/状态/getdents/rdlink 请求上关闭首轮 `CPF_TRY`，以减少 `/proc/*` 读取时的 `EFAULT -> ERESTART` 抖动；其他文件系统路径不变。
     Evidence: `minix/servers/vfs/request.c`
+  - 2026-02-16 `qemu-p0-smoke` (`/tmp/qemu-p0-smoke.log`) still shows a recoverable
+    procfs safecopy fallback (`err -996`) on `/proc/meminfo` path, but command
+    return remains successful (`__RC_MEMINFO__:0`) and no crash is observed.
+    2026-02-16 的 `qemu-p0-smoke`（`/tmp/qemu-p0-smoke.log`）在 `/proc/meminfo`
+    路径仍可见可恢复 safecopy 回退（`err -996`），但命令返回成功
+    （`__RC_MEMINFO__:0`），未出现崩溃。
+  - Added first-error triage tooling:
+    `minix/tests/riscv64/safecopy_triage.py` now classifies the first safecopy
+    error as `acceptable_noise` vs `potential_consistency_issue` using
+    fatal-signature checks, known recoverable patterns, and pre-shell/total-count thresholds.
+    新增首错定性工具：`minix/tests/riscv64/safecopy_triage.py` 可基于
+    fatal 特征、已知可恢复模式与 pre-shell/总量阈值，将首个 safecopy 错误自动判定为
+    `acceptable_noise` 或 `potential_consistency_issue`。
+  - 2026-02-16 multi-run gate result:
+    `minix/tests/riscv64/multi_smoke_gate.sh --rounds 2` completed
+    4/4 passes (diskless + with-disk), and triage output in
+    `/tmp/minix-smoke-gate-20260216-221610/*.triage.txt` classifies the first safecopy
+    event as `acceptable_noise` (`first_safecopy_line=414`, recoverable startup fallback pattern).
+    2026-02-16 多轮门禁结果：
+    `minix/tests/riscv64/multi_smoke_gate.sh --rounds 2`
+    在无盘+带盘共 4 轮均通过；`/tmp/minix-smoke-gate-20260216-221610/*.triage.txt`
+    将首个 safecopy 事件判定为 `acceptable_noise`
+    （`first_safecopy_line=414`，可恢复启动期回退模式）。
+  - 2026-02-16 reproducibility + fresh gate follow-up:
+    `repro_build_gate.sh --objdir obj.intrgcc --smoke-rounds 1 --smoke-timeout 60 --without-disk`
+    completed end-to-end (`tools -> distribution -> smoke`), then a fresh
+    `multi_smoke_gate.sh --rounds 2 --timeout 90` run also passed 4/4.
+    New triage artifacts under `/tmp/minix-smoke-gate-20260216-224157/*.triage.txt`
+    remain `acceptable_noise` with stable first-error signature (`first_safecopy_line=414`).
+    2026-02-16 复现门禁 + 新一轮回归：
+    `repro_build_gate.sh --objdir obj.intrgcc --smoke-rounds 1 --smoke-timeout 60 --without-disk`
+    端到端通过（`tools -> distribution -> smoke`）；随后再次执行
+    `multi_smoke_gate.sh --rounds 2 --timeout 90` 亦为 4/4 全通过。
+    新证据 `/tmp/minix-smoke-gate-20260216-224157/*.triage.txt`
+    仍将首错定性为 `acceptable_noise`，首错签名稳定（`first_safecopy_line=414`）。
+  - 2026-02-17 procfs mount message recheck:
+    `none is mounted on /proc` in QEMU logs is confirmed to be the normal
+    success output of `mount` for source `none`, not a mount failure.
+    Verification references:
+    `/tmp/qemu-recheck-20260217-074108.log` and
+    `minix/commands/mount/mount.c:87`
+    (`printf("%s is mounted on %s\\n", argv[1], argv[2]);`).
+    Therefore this message is treated as a verified non-issue.
+    2026-02-17 对 procfs 挂载提示复核：
+    QEMU 日志中的 `none is mounted on /proc` 已确认是
+    `mount` 在源设备为 `none` 时的正常成功输出，而非挂载失败。
+    复核依据：
+    `/tmp/qemu-recheck-20260217-074108.log` 与
+    `minix/commands/mount/mount.c:87`
+    （`printf("%s is mounted on %s\\n", argv[1], argv[2]);`）。
+    因此该提示按“已核实非问题”处理。
 - Priority assessment / 优先级评估:
   - Keep at `P1` for now: the fault appears recoverable (retry succeeds), but repeated fallback/retry
     in hot read paths (`/proc/*`) can become a performance/logging storm and obscure real regressions.
@@ -511,6 +911,12 @@ This section archives items with code-level fixes landed (some may still require
   on relocation `0x33` during archive link validation.
   历史 Major #24：已通过 `external/gpl3/binutils/patches/0011-riscv-relax-compat.patch`
   让 in-tree binutils 将 `R_RISCV_RELAX` 作为 hint/no-op 处理；归档链接验证不再因 `0x33` 中断。
+- Former P1 #25: riscv64 default compile flags now align with in-tree GCC baseline
+  (`-march=RV64IMAFD -mcmodel=medany`), removing default `-mabi=lp64d`
+  incompatibility drift in GCC-only incremental rebuild paths.
+  历史 P1 #25：riscv64 默认编译参数已收敛为内建 GCC 基线
+  （`-march=RV64IMAFD -mcmodel=medany`），默认路径不再依赖
+  `-mabi=lp64d`，从而避免 GCC-only 增量重建兼容性漂移。
 - `minimal_kernel/proto.h:175` uses `reg_t` for `arch_set_secondary_ipc_return` to avoid RV64 truncation
   (matches `minix/kernel/proto.h` and arch implementations).  
   `minimal_kernel/proto.h:175` 已改为 `reg_t`，避免 RV64 截断（与 `minix/kernel/proto.h` 及架构实现一致）。
@@ -558,6 +964,14 @@ This section archives items with code-level fixes landed (some may still require
   `minix/kernel/arch/riscv64/console.c` 改为包含 `kernel/kernel.h` 以符合内核头文件规则。
 - `minix/drivers/tty/ns16550/Makefile` adds `gp.c` and `__global_pointer$` defsym for static RV64 builds.  
   `minix/drivers/tty/ns16550/Makefile` 增加 `gp.c` 与 `__global_pointer$` defsym，支持 RV64 静态链接。
+- Former P1 #32: multi-smoke now includes default runtime probes via
+  `minix/tests/riscv64/qemu_runtime_probe.py` integrated into
+  `minix/tests/riscv64/multi_smoke_gate.sh`, covering `meminfo/ps/srv_status`
+  and `/dev/c0d0` existence in with-disk rounds.
+  历史 P1 #32：multi-smoke 已通过
+  `minix/tests/riscv64/qemu_runtime_probe.py` 接入
+  `minix/tests/riscv64/multi_smoke_gate.sh`，默认覆盖
+  `meminfo/ps/srv_status`，并在带盘轮次校验 `/dev/c0d0` 存在性。
 
 ## Vision / 愿景: pkgsrc on MINIX RV64
 

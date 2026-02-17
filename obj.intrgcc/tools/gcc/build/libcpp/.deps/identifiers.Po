@@ -1,0 +1,32 @@
+identifiers.o: \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/identifiers.c \
+ config.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/system.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/filenames.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/hashtab.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/ansidecl.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/libiberty.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/safe-ctype.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/cpplib.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/symtab.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/obstack.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/line-map.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/internal.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/symtab.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/cpp-id-data.h \
+ /home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/cpplib.h
+config.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/system.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/filenames.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/hashtab.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/ansidecl.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/libiberty.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/safe-ctype.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/cpplib.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/symtab.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/../include/obstack.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/line-map.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/internal.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/symtab.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/cpp-id-data.h:
+/home/donz/minix/tools/gcc/../../external/gpl3/gcc/dist/libcpp/include/cpplib.h:

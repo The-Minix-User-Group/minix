@@ -269,7 +269,8 @@ void kernel_call(message *m_user, struct proc * caller)
 #ifdef __riscv64
 	  if ((msg.m_type == SYS_SAFECOPYFROM ||
 	      msg.m_type == SYS_SAFECOPYTO) &&
-	      result != OK && kcall_safecopy_log_count < 8) {
+	      result != OK && result != VMSUSPEND &&
+	      kcall_safecopy_log_count < 8) {
 		  direct_print("rv64: kcall safecopy err=");
 		  direct_print_hex((u64_t)result);
 		  direct_print(" caller=");
@@ -778,7 +779,8 @@ void kernel_call_resume(struct proc *caller)
 #ifdef __riscv64
 	if ((caller->p_vmrequest.saved.reqmsg.m_type == SYS_SAFECOPYFROM ||
 	    caller->p_vmrequest.saved.reqmsg.m_type == SYS_SAFECOPYTO) &&
-	    result != OK && kcall_safecopy_resume_log_count < 8) {
+	    result != OK && result != VMSUSPEND &&
+	    kcall_safecopy_resume_log_count < 8) {
 		direct_print("rv64: kcall resume safecopy err=");
 		direct_print_hex((u64_t)result);
 		direct_print(" caller=");

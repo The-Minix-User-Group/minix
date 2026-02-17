@@ -9,24 +9,28 @@ targeting the QEMU virt platform.
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.6
-- 最后更新：2026-02-16
+- 版本：1.9
+- 最后更新：2026-02-17
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.6
-- Last updated: 2026-02-16
+- Version: 1.9
+- Last updated: 2026-02-17
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
 
-## 当前状态（截至 2026-02-16）/ Current Status (as of 2026-02-16)
+## 当前状态（截至 2026-02-17）/ Current Status (as of 2026-02-17)
 
 **中文**
 - 构建：可通过（需使用 workaround 组合，见本文构建命令与 `RISC64-STATUS.md`）
 - 运行：QEMU 可稳定进入 shell，并通过 `echo SMOKE_OK`、`ps -aux`、`cat /proc/meminfo` 交互复测
-- 关键风险：含盘 virtio 启动路径待复核、`procfs` safecopy 回退噪声、SMP 未实现、GCC-only 增量链路 ABI 参数兼容性（#25，详见 `issue.md`）
-- 进度估计：约 72%（启动链路与基础用户态已稳定，设备与工具链链路仍待完善）
+- 系统版本已滚动至 `Minix Cat 4.0.0`（release profile: `4.0.0-riscv64`）。
+- ramdisk 已内置 `neofetch`（`pfetch` 兼容包装），默认服务统计来源为 `/proc/service`。
+- `obj.intrgcc` 独立构建链路已跑通：`tools(MKGCC=yes,MKGCCCMDS=yes) -> distribution -> QEMU`，不再出现 `Boot module not found: ds`
+- 含盘 smoke 已复测：`virtio_blk_mmio` 在 `-i <disk image>` 轮廓下可正常初始化。
+- 关键风险：`procfs` safecopy 回退噪声、SMP 未实现、GCC-only 增量链路 ABI 参数兼容性（#25，详见 `issue.md`）
+- 进度估计：约 76%（启动链路与基础用户态已稳定，主要剩余问题集中在噪声收敛与工具链细节）
 - 代码更新（至 2026-01-06 01:00 前）：用户态 gp 初始化（crt0 + gp.c）、exec/ucontext 与
   VM 执行权限标记、IPC/缺页 ABI 修复（64 位地址、senda 参数顺序）。
 - 文档更新：2026-02-16 追加 `memset` 递归修复后的 ramdisk 复测结果，`ps -aux` 不再复现 SIGSEGV。
@@ -35,9 +39,17 @@ targeting the QEMU virt platform.
 - Build: passes with workaround flags (see commands below and `RISC64-STATUS.md`)
 - Runtime: QEMU reaches a stable shell prompt and passes interactive retests:
   `echo SMOKE_OK`, `ps -aux`, and `cat /proc/meminfo`
-- Key risks: with-disk virtio startup path recheck, procfs safecopy fallback noise,
-  SMP not implemented, and GCC-only incremental ABI-flag compatibility (#25; see `issue.md`)
-- Progress estimate: ~72% (boot + basic userland path stabilized; device/toolchain work remains)
+- System version is now `Minix Cat 4.0.0` (release profile: `4.0.0-riscv64`).
+- Ramdisk now includes `neofetch` (`pfetch` kept as compatibility wrapper),
+  and the default service summary source is `/proc/service`.
+- The isolated `obj.intrgcc` chain is validated end-to-end
+  (`tools` with `MKGCC=yes` and `MKGCCCMDS=yes` -> `distribution` -> `QEMU`);
+  `Boot module not found: ds` is no longer reproduced on this profile.
+- With-disk smoke has been revalidated: `virtio_blk_mmio` initializes in `-i <disk image>` profile.
+- Key risks: procfs safecopy fallback noise, SMP not implemented, and GCC-only
+  incremental ABI-flag compatibility (#25; see `issue.md`)
+- Progress estimate: ~76% (boot + basic userland path stabilized; remaining work is mostly
+  noise/toolchain convergence)
 - Code updates (through 2026-01-06 01:00): userland gp init (crt0 + gp.c),
   exec/ucontext + VM exec flags, IPC/pagefault ABI fixes (64-bit addr, senda arg order).
 - Doc refresh: 2026-02-16 update adds post-`memset`-fix ramdisk retest; `ps` stack-top SIGSEGV
@@ -98,15 +110,17 @@ make
 cd /path/to/minix
 
 # 设置构建变量
-export TOOLDIR=/path/to/minix/obj/tooldir.$(uname -s)-$(uname -r)-$(uname -m)
-export DESTDIR=/path/to/minix/obj/destdir.evbriscv64
+export TOOLDIR=/path/to/minix/obj.intrgcc/tooldir.$(uname -s)-$(uname -r)-$(uname -m)
+export DESTDIR=/path/to/minix/obj.intrgcc/destdir.evbriscv64
 ```
 
 **中文**
 - 变量用于指定工具链与输出目录。
+- 当前基线使用 `obj.intrgcc`；`obj` 路径仅作为历史记录，不用于当前构建/验证。
 
 **English**
 - These variables point to the toolchain and output directories.
+- Active baseline uses `obj.intrgcc`; `obj` paths are legacy/historical only.
 
 ### 3. 构建交叉编译工具 / Build Tools
 
@@ -122,10 +136,10 @@ MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no \
 ```
 
 **中文**
-- 若工具链已在 `obj/tooldir.*` 中生成，可直接进入下一步。
+- 若工具链已在 `obj.intrgcc/tooldir.*` 中生成，可直接进入下一步。
 
 **English**
-- If `obj/tooldir.*` already exists, proceed to the distribution build.
+- If `obj.intrgcc/tooldir.*` already exists, proceed to the distribution build.
 
 ### 4. 构建完整系统 / Build Distribution
 
@@ -170,19 +184,19 @@ MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
 
 ```bash
 MAKEFLAGS="-de -m $PWD/share/mk" \
-TOOLDIR="$PWD/obj/tooldir.$(uname -s)-$(uname -r)-$(uname -m)" \
 MACHINE=evbriscv64 MACHINE_ARCH=riscv64 NETBSDSRCDIR="$PWD" \
-DESTDIR="$PWD/obj/destdir.evbriscv64" \
+TOOLDIR="$PWD/obj.intrgcc/tooldir.$(uname -s)-$(uname -r)-$(uname -m)" \
+DESTDIR="$PWD/obj.intrgcc/destdir.evbriscv64" \
 AVAILABLE_COMPILER=gcc ACTIVE_CC=gcc ACTIVE_CPP=gcc ACTIVE_CXX=gcc ACTIVE_OBJC=gcc \
 RISCV_ARCH_FLAGS='-march=RV64IMAFD -mcmodel=medany' \
-"$PWD/obj/tooldir.$(uname -s)-$(uname -r)-$(uname -m)/bin/nbmake" \
+"$PWD/obj.intrgcc/tooldir.$(uname -s)-$(uname -r)-$(uname -m)/bin/nbmake" \
   -C lib/csu dependall
 ```
 
 ### 3. 工具链可用性验证 / Toolchain Check
 
 ```bash
-obj/tooldir.*/bin/riscv64-elf32-minix-gcc -dumpmachine
+obj.intrgcc/tooldir.*/bin/riscv64-elf32-minix-gcc -dumpmachine
 # 期望输出：riscv64-elf32-minix
 # Expected: riscv64-elf32-minix
 ```
@@ -221,14 +235,18 @@ MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
 - 内核启动：通过，日志可见 `MINIX` banner、`VFS: init_root done`、`init: exec /bin/sh /etc/rc`。
 - 交互冒烟：通过，在 QEMU shell 中执行 `echo SMOKE_OK` 返回 `SMOKE_OK`。
 - 增量复测：通过，`ps -aux` 返回进程列表且不再 SIGSEGV；`cat /proc/meminfo` 可正常输出。
-- 已知未完成：含盘 virtio 启动链路仍需单独复核；SMP 仍为 skip（not yet implemented）。
+- 含盘复测：通过，`-i <disk image>` 轮廓下 `virtio_blk_mmio` 报告 capacity/initialized。
+- 已知未完成：SMP 仍为 skip（not yet implemented）；`procfs` safecopy 噪声与 GCC-only ABI 参数兼容仍待收敛。
 
 **English (as of 2026-02-16)**
 - Userland compile tests: pass (in-tree toolchain + sysroot, `-std=gnu99`).
 - Kernel boot: pass; logs show `MINIX` banner, `VFS: init_root done`, and `init: exec /bin/sh /etc/rc`.
 - Interactive smoke: pass; running `echo SMOKE_OK` in QEMU shell returns `SMOKE_OK`.
 - Incremental retest: pass; `ps -aux` no longer crashes and `cat /proc/meminfo` returns expected output.
-- Remaining gaps: with-disk virtio startup still needs focused recheck; SMP remains skipped (not yet implemented).
+- With-disk retest: pass; in `-i <disk image>` profile, `virtio_blk_mmio` reports
+  capacity/initialized.
+- Remaining gaps: SMP remains skipped (not yet implemented); procfs safecopy noise and
+  GCC-only ABI-flag compatibility still need convergence.
 
 #### 5.1 启动稳定化验证记录 / Boot Stabilization Validation
 
@@ -288,9 +306,13 @@ Current status: minimum pass criteria met (shell reachable and interactive comma
 复测命令 / Retest commands:
 ```bash
 ./minix/scripts/qemu-riscv64.sh -s \
-  -k obj/destdir.evbriscv64/boot/minix/.temp/kernel \
-  -B obj/destdir.evbriscv64
+  -k obj.intrgcc/minix/kernel/kernel \
+  -B obj.intrgcc/destdir.evbriscv64
 ```
+
+注意 / Note:
+- 开发调试时优先使用 `obj.intrgcc/minix/kernel/kernel`；`obj*/destdir.../boot/minix/.temp/kernel`
+  可能滞后于最近一次内核重编译，导致来宾中仍显示旧版本号。
 
 来宾内命令 / In-guest commands:
 ```sh
@@ -303,6 +325,142 @@ cat /proc/meminfo
   `ps -aux`: no longer reproduces the previous stack-top SIGSEGV with `pc` in `memset`.
 - `cat /proc/meminfo`：可返回数据；仍可见一次可恢复 safecopy fallback（已在 `issue.md` #17 跟踪）。  
   `cat /proc/meminfo`: returns data; one recoverable safecopy fallback is still observable (tracked in `issue.md` #17).
+
+#### 5.5 2026-02-16 `obj.intrgcc` 全链路验证 / 2026-02-16 `obj.intrgcc` End-to-End Validation
+
+构建命令 / Build commands:
+```bash
+# 1) tools (isolated objdir)
+MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+./build.sh -U -m evbriscv64 -O obj.intrgcc \
+  -V AVAILABLE_COMPILER=gcc -V ACTIVE_CC=gcc -V ACTIVE_CPP=gcc -V ACTIVE_CXX=gcc -V ACTIVE_OBJC=gcc \
+  tools
+
+# 2) distribution (same objdir; workaround profile)
+MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+./build.sh -U -u -j"$(nproc)" -m evbriscv64 -O obj.intrgcc \
+  -V AVAILABLE_COMPILER=gcc -V ACTIVE_CC=gcc -V ACTIVE_CPP=gcc -V ACTIVE_CXX=gcc -V ACTIVE_OBJC=gcc \
+  -V RISCV_ARCH_FLAGS='-march=RV64IMAFD -mcmodel=medany' \
+  -V NOGCCERROR=yes \
+  -V MKPIC=no -V MKPICLIB=no -V MKPICINSTALL=no \
+  -V MKCXX=no -V MKLIBSTDCXX=no -V MKATF=no \
+  -V USE_PCI=no \
+  -V CHECKFLIST_FLAGS='-m -e' \
+  distribution
+```
+
+QEMU 验证命令 / QEMU validation command:
+```bash
+./minix/scripts/qemu-riscv64.sh \
+  -k obj.intrgcc/minix/kernel/kernel \
+  -B obj.intrgcc/destdir.evbriscv64
+```
+
+结果 / Result:
+- 成功进入 shell，且 `ds` 等 boot modules 可正常加载，不再复现 `Boot module not found: ds`。  
+  Shell prompt is reachable and boot modules (`ds` included) load correctly; `Boot module not found: ds` is no longer observed.
+- 该链路可作为“完全自举可重建”（不依赖从 `obj/` 注入）的基线。  
+  This chain is now a practical baseline for fully self-contained rebuilds without injecting artifacts from `obj/`.
+
+#### 5.6 2026-02-16 `obj.intrgcc` 完全自举收敛（内建 gcc 命令）/ 2026-02-16 `obj.intrgcc` Fully Self-Hosted Closure (in-tree gcc commands)
+
+构建命令 / Build commands:
+```bash
+# 1) tools with in-tree GCC frontends enabled
+MKPCI=no HOST_CFLAGS='-O -fcommon' HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+./build.sh -U -m evbriscv64 -O obj.intrgcc \
+  -V AVAILABLE_COMPILER=gcc -V ACTIVE_CC=gcc -V ACTIVE_CPP=gcc -V ACTIVE_CXX=gcc -V ACTIVE_OBJC=gcc \
+  -V MKGCC=yes -V MKGCCCMDS=yes \
+  tools
+
+# 2) distribution on the same objdir
+MKPCI=no HOST_CFLAGS='-O -fcommon' HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+./build.sh -U -u -j"$(nproc)" -m evbriscv64 -O obj.intrgcc \
+  -V AVAILABLE_COMPILER=gcc -V ACTIVE_CC=gcc -V ACTIVE_CPP=gcc -V ACTIVE_CXX=gcc -V ACTIVE_OBJC=gcc \
+  -V RISCV_ARCH_FLAGS='-march=RV64IMAFD -mcmodel=medany' \
+  -V NOGCCERROR=yes \
+  -V MKPIC=no -V MKPICLIB=no -V MKPICINSTALL=no \
+  -V MKCXX=no -V MKLIBSTDCXX=no -V MKATF=no \
+  -V USE_PCI=no \
+  -V CHECKFLIST_FLAGS='-m -e' \
+  distribution
+```
+
+工具链产物校验 / Toolchain artifact checks:
+```bash
+TOOLDIR=$(echo obj.intrgcc/tooldir.*-x86_64)
+ls -l \
+  "$TOOLDIR/bin/riscv64-elf32-minix-gcc" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-c++" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-cpp" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-g++"
+file \
+  "$TOOLDIR/bin/riscv64-elf32-minix-gcc" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-c++" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-cpp" \
+  "$TOOLDIR/bin/riscv64-elf32-minix-g++"
+```
+
+QEMU 复测命令 / QEMU retest command:
+```bash
+timeout 45 ./minix/scripts/qemu-riscv64.sh \
+  -k obj.intrgcc/minix/kernel/kernel \
+  -B obj.intrgcc/destdir.evbriscv64
+```
+
+结果 / Result:
+- `riscv64-elf32-minix-{gcc,c++,cpp,g++}` 在 `obj.intrgcc/tooldir.*/bin` 内均为本地 ELF 可执行文件。  
+  `riscv64-elf32-minix-{gcc,c++,cpp,g++}` are local ELF executables under `obj.intrgcc/tooldir.*/bin`.
+- `distribution` 在同一 `obj.intrgcc` 完成，且 QEMU 可达 shell（`#`）；`Boot module not found: ds` 未复现。  
+  `distribution` completes on the same `obj.intrgcc`; QEMU reaches shell (`#`) and `Boot module not found: ds` is not reproduced.
+
+#### 5.7 最小回归门禁（自动化，多轮）/ Minimum Regression Gate (Automated, Multi-Run)
+
+建议将以下三项固定为最小门禁：
+Recommended minimum gate chain:
+
+1) safecopy 首错定性 / safecopy first-error triage:
+```bash
+python3 ./minix/tests/riscv64/safecopy_triage.py /tmp/qemu-smoke.log
+```
+
+2) 多轮 smoke（无盘 + 带盘）/ multi-run smoke (diskless + with-disk):
+```bash
+./minix/tests/riscv64/multi_smoke_gate.sh \
+  --kernel obj.intrgcc/minix/kernel/kernel \
+  --destdir obj.intrgcc/destdir.evbriscv64 \
+  --rounds 2 --timeout 90
+```
+
+3) 可重复构建门禁（隔离 objdir）/ reproducible build gate (isolated objdir):
+```bash
+./minix/tests/riscv64/repro_build_gate.sh \
+  --objdir obj.repro \
+  --smoke-rounds 2
+```
+
+脚本说明 / Script notes:
+- `multi_smoke_gate.sh` 要求每轮满足：
+  shell 可达、无 fatal 签名、`safecopy_triage` 不判定为潜在一致性问题；
+  带盘轮次还要求 `virtio-blk-mmio: initialized`，且不能出现历史启动失败签名。
+  同时默认执行运行时命令探针（`qemu_runtime_probe.py`），要求
+  `cat /proc/meminfo`、`ps -aux`、`minix-service sysctl srv_status` 返回成功；
+  带盘轮次还需 `/dev/c0d0` 存在。
+  Runtime command probe is enabled by default and requires
+  `cat /proc/meminfo`, `ps -aux`, `minix-service sysctl srv_status` to succeed;
+  with-disk rounds additionally require `/dev/c0d0`.
+  默认行为为“每轮独立带盘镜像”（例如 `...round1.img`、`...round2.img`）；
+  如需跨轮复用单一镜像，显式传 `--reuse-disk`。
+  如需临时关闭运行时探针，使用 `--no-runtime-probe`；
+  可通过 `--runtime-timeout` / `--runtime-cmd-timeout` 调整探针超时。
+- `repro_build_gate.sh` 执行受控参数的 `tools -> distribution -> multi_smoke_gate`，
+  并检查 `external/gpl3/binutils/patches/0011-riscv-relax-compat.patch`
+  为 tracked 文件，用于避免“手工补丁/手工拷贝产物”依赖。
+  其 relax 兼容探针使用
+  `ld -r --whole-archive ... --no-whole-archive`，
+  确保实际覆盖 archive 成员链接路径。
+- `run_tests.sh` 新增 `gate` 子命令，可直接触发多轮门禁：
+  `./minix/tests/riscv64/run_tests.sh gate`
 
 ## 已知问题与解决方案 / Known Issues and Workarounds
 
@@ -333,17 +491,17 @@ cat /proc/meminfo
    **SBI legacy IPI/fence passes VA**  
    - Status: PA-side fix is in tree; verify in SMP-related runtime tests.
 
-5. **virtio 启动路径仍需含盘复核（A3）**  
-   - 现状：ramdisk 轮廓下 `memset` 栈顶 SIGSEGV 已缓解；含盘 virtio 链路需单独复测。  
-   - 建议：使用 `-i <disk image>` 轮廓复跑 `minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0`。  
-   **Virtio startup path still needs with-disk recheck (A3)**  
-   - Status: stack-top SIGSEGV signature is mitigated in ramdisk profile; with-disk path still needs focused retest.
-   - Action: re-run `minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0` under `-i <disk image>` profile.
+5. **virtio 启动路径含盘复测已通过（A3）**
+   - 现状：`-i <disk image>` 轮廓下 `virtio_blk_mmio` 已可初始化（capacity/initialized），未复现 `device not found`/`couldn't start`。
+   - 建议：将含盘启动检查纳入常规 smoke，持续防回归。
+   **Virtio startup path with-disk retest passed (A3)**
+   - Status: in `-i <disk image>` profile, `virtio_blk_mmio` initializes successfully and no longer reproduces `device not found`/`couldn't start`.
+   - Action: keep the with-disk startup check in regular smoke runs to prevent regressions.
 
 6. **in-tree linker `R_RISCV_RELAX` 兼容性（#24，已缓解）**  
    - 现状：已加入 `external/gpl3/binutils/patches/0011-riscv-relax-compat.patch`，
      让 in-tree `ld` 将 `R_RISCV_RELAX` 视为 hint/no-op。  
-   - 验证：`ld -r --whole-archive obj/destdir.evbriscv64/usr/lib/libaudiodriver.a --no-whole-archive -o /tmp/libaudiodriver.whole.o`
+   - 验证：`ld -r --whole-archive obj.intrgcc/destdir.evbriscv64/usr/lib/libaudiodriver.a --no-whole-archive -o /tmp/libaudiodriver.whole.o`
      使用 in-tree `ld` 可通过，不再触发 `unrecognized relocation (0x33)`。  
    **in-tree linker compatibility with `R_RISCV_RELAX` (#24, mitigated)**  
    - Status: `external/gpl3/binutils/patches/0011-riscv-relax-compat.patch` handles
@@ -451,7 +609,7 @@ cd minix/tests/riscv64
 
 ## 构建输出 / Build Outputs
 
-1. **交叉编译工具链 / Toolchain**：`obj.intrgcc/tooldir/bin/riscv64-elf32-minix-*`
+1. **交叉编译工具链 / Toolchain**：`obj.intrgcc/tooldir.*/bin/riscv64-elf32-minix-*`
 2. **内核镜像 / Kernel**：`obj.intrgcc/minix/kernel/kernel`
 3. **系统库 / Libraries**：`obj.intrgcc/destdir.evbriscv64/usr/lib/`
 4. **服务器程序 / Servers**：`obj.intrgcc/destdir.evbriscv64/sbin/`
@@ -517,5 +675,5 @@ MINIX 3 is licensed under BSD. See LICENSE in the source tree.
 
 ---
 
-**最后更新 / Last updated**：2026-02-16  
-**版本 / Version**：1.5
+**最后更新 / Last updated**：2026-02-17  
+**版本 / Version**：1.9

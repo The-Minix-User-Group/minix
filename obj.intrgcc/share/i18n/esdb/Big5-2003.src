@@ -1,0 +1,8 @@
+# $NetBSD: Big5.src,v 1.1 2006/06/19 17:28:25 tnozaki Exp $
+
+NAME		"Big5-2003"
+ENCODING	"BIG5"
+VARIABLE	"row=0x81-0xFE;col=0x40-0x7E,0xA1-0xFE;"
+DEFCSID		"ISO646-US"		0
+DEFCSID		"Big5-2003"		1
+INVALID		0x3F	# '?'

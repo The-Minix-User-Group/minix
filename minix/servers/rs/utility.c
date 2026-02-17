@@ -359,9 +359,9 @@ int rs_isokendpt(endpoint_t endpoint, int *proc)
 }
 
 /*===========================================================================*
- *				rs_isokservice			 	     *
+ *				rs_isokprocnr			 	     *
  *===========================================================================*/
-int rs_isokservice(endpoint_t endpoint, int *proc, struct rproc **rpp)
+int rs_isokprocnr(endpoint_t endpoint, int *proc)
 {
 	int r;
 
@@ -371,11 +371,38 @@ int rs_isokservice(endpoint_t endpoint, int *proc, struct rproc **rpp)
 	if (*proc < 0 || *proc >= NR_PROCS)
 		return EINVAL;
 
+	return OK;
+}
+
+/*===========================================================================*
+ *				rs_isokservice			 	     *
+ *===========================================================================*/
+int rs_isokservice(endpoint_t endpoint, int *proc, struct rproc **rpp)
+{
+	int r;
+
+	if ((r = rs_isokprocnr(endpoint, proc)) != OK)
+		return r;
+
 	*rpp = rproc_ptr[*proc];
 	if (*rpp == NULL || (*rpp)->r_pub == NULL)
 		return EDEADEPT;
 
 	return OK;
+}
+
+/*===========================================================================*
+ *			rs_service_flag_is_set		 	     *
+ *===========================================================================*/
+int rs_service_flag_is_set(endpoint_t endpoint, int flag)
+{
+	int proc;
+	struct rproc *rp;
+
+	if (rs_isokservice(endpoint, &proc, &rp) != OK)
+		return 0;
+
+	return !!(rp->r_flags & flag);
 }
 
 /*===========================================================================*

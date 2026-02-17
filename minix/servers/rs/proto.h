@@ -138,7 +138,9 @@ int rs_receive_ticks(endpoint_t src, message *m_ptr,
 void reply(endpoint_t who, struct rproc *rp, message *m_ptr);
 void late_reply(struct rproc *rp, int code);
 int rs_isokendpt(endpoint_t endpoint, int *proc);
+int rs_isokprocnr(endpoint_t endpoint, int *proc);
 int rs_isokservice(endpoint_t endpoint, int *proc, struct rproc **rpp);
+int rs_service_flag_is_set(endpoint_t endpoint, int flag);
 int sched_init_proc(struct rproc *rp);
 int update_sig_mgrs(struct rproc *rp, endpoint_t sig_mgr,
 	endpoint_t bak_sig_mgr);

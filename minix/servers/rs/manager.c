@@ -176,49 +176,58 @@ int init_state_data(endpoint_t src_e, int prepare_state,
     struct rs_state_data *dst_rs_state_data)
 {
   int s, i, j, num_ipc_filters = 0;
+  int has_state_data = 0;
   struct rs_ipc_filter_el (*rs_ipc_filter_els)[IPCF_MAX_ELEMENTS];
   struct rs_ipc_filter_el rs_ipc_filter[IPCF_MAX_ELEMENTS];
   size_t rs_ipc_filter_size = sizeof(rs_ipc_filter);
   ipc_filter_el_t (*ipcf_els_buff)[IPCF_MAX_ELEMENTS];
   size_t ipcf_els_buff_size;
 
+  s = OK;
+  ipcf_els_buff = NULL;
   dst_rs_state_data->size = 0;
   dst_rs_state_data->eval_addr = NULL;
   dst_rs_state_data->eval_len = 0;
+  dst_rs_state_data->eval_gid = GRANT_INVALID;
   dst_rs_state_data->ipcf_els = NULL;
   dst_rs_state_data->ipcf_els_size  = 0;
+  dst_rs_state_data->ipcf_els_gid = GRANT_INVALID;
   if(src_rs_state_data->size != sizeof(struct rs_state_data)) {
-      return E2BIG;
+      s = E2BIG;
+      goto cleanup;
   }
 
   /* Initialize eval expression. */
   if(prepare_state == SEF_LU_STATE_EVAL) {
       if(src_rs_state_data->eval_len == 0 || !src_rs_state_data->eval_addr) {
-          return EINVAL;
+          s = EINVAL;
+          goto cleanup;
       }
       dst_rs_state_data->eval_addr = malloc(src_rs_state_data->eval_len+1);
       dst_rs_state_data->eval_len = src_rs_state_data->eval_len;
       if(!dst_rs_state_data->eval_addr) {
-          return ENOMEM;
+          s = ENOMEM;
+          goto cleanup;
       }
       s = sys_datacopy(src_e, (vir_bytes) src_rs_state_data->eval_addr,
           SELF, (vir_bytes) dst_rs_state_data->eval_addr,
           dst_rs_state_data->eval_len);
       if(s != OK) {
-          return s;
+          goto cleanup;
       }
       *((char*)dst_rs_state_data->eval_addr + dst_rs_state_data->eval_len) = '\0';
-      dst_rs_state_data->size = src_rs_state_data->size;
+      has_state_data = 1;
   }
 
   /* Initialize ipc filters. */
   if(src_rs_state_data->ipcf_els_size % rs_ipc_filter_size) {
-      return E2BIG;
+      s = E2BIG;
+      goto cleanup;
   }
   rs_ipc_filter_els = src_rs_state_data->ipcf_els;
   num_ipc_filters = src_rs_state_data->ipcf_els_size / rs_ipc_filter_size;
   if(!rs_ipc_filter_els) {
-      return OK;
+      goto done;
   }
 
   ipcf_els_buff_size = sizeof(ipc_filter_el_t)*IPCF_MAX_ELEMENTS*num_ipc_filters;
@@ -227,14 +236,15 @@ int init_state_data(endpoint_t src_e, int prepare_state,
   }
   ipcf_els_buff = malloc(ipcf_els_buff_size);
   if(!ipcf_els_buff) {
-      return ENOMEM;
+      s = ENOMEM;
+      goto cleanup;
   }
   memset(ipcf_els_buff, 0, ipcf_els_buff_size);
   for(i=0;i<num_ipc_filters;i++) {
       s = sys_datacopy(src_e, (vir_bytes) rs_ipc_filter_els[i],
           SELF, (vir_bytes) rs_ipc_filter, rs_ipc_filter_size);
       if(s != OK) {
-          return s;
+          goto cleanup;
       }
       for(j=0;j<IPCF_MAX_ELEMENTS && rs_ipc_filter[j].flags;j++) {
           endpoint_t m_source = 0;
@@ -260,7 +270,8 @@ int init_state_data(endpoint_t src_e, int prepare_state,
                       errno=0;
                       m_source = strtol(rs_ipc_filter[j].m_label, &buff, 10);
                       if(errno || strcmp(buff, "")) {
-                            return ESRCH;
+                            s = ESRCH;
+                            goto cleanup;
                       }
                   }
               }
@@ -276,11 +287,34 @@ int init_state_data(endpoint_t src_e, int prepare_state,
       ipcf_els_buff[i][0].m_source = RS_PROC_NR;
       ipcf_els_buff[i][0].m_type = VM_RS_UPDATE;
   }
-  dst_rs_state_data->size = src_rs_state_data->size;
   dst_rs_state_data->ipcf_els = ipcf_els_buff;
+  ipcf_els_buff = NULL;
   dst_rs_state_data->ipcf_els_size = ipcf_els_buff_size;
+  has_state_data = 1;
 
+done:
+  dst_rs_state_data->size = has_state_data ? src_rs_state_data->size : 0;
   return OK;
+
+cleanup:
+  if(ipcf_els_buff) {
+      free(ipcf_els_buff);
+  }
+  if(dst_rs_state_data->ipcf_els) {
+      free(dst_rs_state_data->ipcf_els);
+      dst_rs_state_data->ipcf_els = NULL;
+  }
+  if(dst_rs_state_data->eval_addr) {
+      free(dst_rs_state_data->eval_addr);
+      dst_rs_state_data->eval_addr = NULL;
+  }
+  dst_rs_state_data->size = 0;
+  dst_rs_state_data->eval_len = 0;
+  dst_rs_state_data->eval_gid = GRANT_INVALID;
+  dst_rs_state_data->ipcf_els_size = 0;
+  dst_rs_state_data->ipcf_els_gid = GRANT_INVALID;
+
+  return s;
 }
 
 /*===========================================================================*
@@ -534,7 +568,7 @@ struct rproc *rp;
 /* Create the given system service. */
   int child_proc_nr_e, child_proc_nr_n;		/* child process slot */
   pid_t child_pid;				/* child's process id */
-  int s, use_copy, has_replica;
+  int s, use_copy, has_replica, rs_proc_nr;
   extern char **environ;
   struct rprocpub *rpub;
 
@@ -585,7 +619,8 @@ struct rproc *rp;
 	panic("unable to get child endpoint: %d", s);
 
   /* There is now a child process. Update the system process table. */
-  child_proc_nr_n = _ENDPOINT_P(child_proc_nr_e);
+  if ((s = rs_isokprocnr(child_proc_nr_e, &child_proc_nr_n)) != OK)
+	panic("invalid child endpoint %d: %d", child_proc_nr_e, s);
   rp->r_flags = RS_IN_USE;			/* mark slot in use */
   rpub->endpoint = child_proc_nr_e;		/* set child endpoint */
   rp->r_pid = child_pid;			/* set child pid */
@@ -687,7 +722,12 @@ struct rproc *rp;
       /* VM may start actually pinning memory for us only now.
        * Ask again for all our instances.
        */
-      rs_rp = rproc_ptr[_ENDPOINT_P(RS_PROC_NR)];
+      if ((s = rs_isokservice(RS_PROC_NR, &rs_proc_nr, &rs_rp)) != OK) {
+          printf("RS: unable to locate RS instance: %d\n", s);
+          cleanup_service(rp);
+          return s;
+      }
+      (void)rs_proc_nr;
       get_service_instances(rs_rp, &rs_rps, &nr_rs_rps);
       for(i=0;i<nr_rs_rps;i++) {
           vm_memctl(rs_rps[i]->r_pub->endpoint, VM_RS_MEM_PIN, 0, 0);
@@ -718,7 +758,7 @@ int clone_service(struct rproc *rp, int instance_flag, int init_flags)
   struct rproc **rp_link;
   struct rproc **replica_link;
   struct rproc *rs_rp;
-  int rs_flags;
+  int rs_flags, rs_proc_nr;
   int r;
 
   if(rs_verbose)
@@ -765,7 +805,11 @@ int clone_service(struct rproc *rp, int instance_flag, int init_flags)
   /* If this instance is for restarting RS, set up a backup signal manager. */
   rs_flags = (ROOT_SYS_PROC | RST_SYS_PROC);
   if((replica_rp->r_priv.s_flags & rs_flags) == rs_flags) {
-      rs_rp = rproc_ptr[_ENDPOINT_P(RS_PROC_NR)];
+      if ((r = rs_isokservice(RS_PROC_NR, &rs_proc_nr, &rs_rp)) != OK) {
+          *rp_link = NULL;
+          return kill_service(replica_rp, "unable to locate RS instance", r);
+      }
+      (void)rs_proc_nr;
 
       /* Update signal managers. */
       r = update_sig_mgrs(rs_rp, SELF, replica_rpub->endpoint);
@@ -1034,7 +1078,7 @@ void reincarnate_service(struct rproc *old_rp)
 {
 /* Restart a service as if it were never started before. */
   struct rproc *rp;
-  int r, restarts;
+  int r, restarts, proc;
 
   if ((r = clone_slot(old_rp, &rp)) != OK) {
       printf("RS: Failed to clone the slot: %d\n", r);
@@ -1042,7 +1086,10 @@ void reincarnate_service(struct rproc *old_rp)
   }
 
   rp->r_flags = RS_IN_USE;
-  rproc_ptr[_ENDPOINT_P(rp->r_pub->endpoint)] = NULL;
+  if (rs_isokprocnr(rp->r_pub->endpoint, &proc) == OK &&
+      rproc_ptr[proc] == rp) {
+      rproc_ptr[proc] = NULL;
+  }
 
   restarts = rp->r_restarts;
   start_service(rp, SEF_INIT_FRESH);
@@ -1877,6 +1924,7 @@ struct rproc **dst_rpp;
   struct rproc orig_src_rproc, orig_dst_rproc;
   struct rprocpub orig_src_rprocpub, orig_dst_rprocpub;
   struct rprocupd *prev_rpupd, *rpupd;
+  int src_proc, dst_proc, r;
 
   src_rp = *src_rpp;
   dst_rp = *dst_rpp;
@@ -1919,10 +1967,16 @@ struct rproc **dst_rpp;
   RUPDATE_ITER(rupdate.first_rpupd, prev_rpupd, rpupd,
       swap_slot_pointer(&rpupd->rp, src_rp, dst_rp);
   );
-  swap_slot_pointer(&rproc_ptr[_ENDPOINT_P(src_rp->r_pub->endpoint)],
-      src_rp, dst_rp);
-  swap_slot_pointer(&rproc_ptr[_ENDPOINT_P(dst_rp->r_pub->endpoint)],
-      src_rp, dst_rp);
+  if ((r = rs_isokprocnr(src_rp->r_pub->endpoint, &src_proc)) != OK) {
+      panic("swap_slot: bad src endpoint %d: %d",
+          src_rp->r_pub->endpoint, r);
+  }
+  if ((r = rs_isokprocnr(dst_rp->r_pub->endpoint, &dst_proc)) != OK) {
+      panic("swap_slot: bad dst endpoint %d: %d",
+          dst_rp->r_pub->endpoint, r);
+  }
+  swap_slot_pointer(&rproc_ptr[src_proc], src_rp, dst_rp);
+  swap_slot_pointer(&rproc_ptr[dst_proc], src_rp, dst_rp);
 
   /* Adjust input pointers. */
   *src_rpp = dst_rp;
@@ -2106,8 +2160,7 @@ struct rproc *rp;
   rp->r_flags = 0;
   rp->r_pid = -1;
   rpub->in_use = FALSE;
-  if (rs_isokendpt(rpub->endpoint, &proc) == OK &&
-      proc >= 0 && proc < NR_PROCS &&
+  if (rs_isokprocnr(rpub->endpoint, &proc) == OK &&
       rproc_ptr[proc] == rp) {
       rproc_ptr[proc] = NULL;
   }

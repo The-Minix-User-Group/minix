@@ -87,9 +87,10 @@ CPPFLAGS+= ${SMP_FLAGS}
 CFLAGS+= -mno-unaligned-access
 .endif
 
-# RISC-V 64 编译标志
+# RISC-V defaults:
+# Keep a GCC-compatible baseline for the in-tree rv64 toolchain.
 .if ${MACHINE_ARCH} == "riscv64"
-RISCV_ARCH_FLAGS?= -march=rv64gc -mabi=lp64d
+RISCV_ARCH_FLAGS?= -march=RV64IMAFD -mcmodel=medany
 CFLAGS+= ${RISCV_ARCH_FLAGS}
 .elif ${MACHINE_ARCH} == "riscv32"
 RISCV_ARCH_FLAGS?= -march=rv32gc -mabi=ilp32d

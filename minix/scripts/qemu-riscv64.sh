@@ -25,6 +25,7 @@ DEBUG=0
 NETWORK=0
 GRAPHICS=0
 KERNEL=""
+SELECTED_KERNEL=""
 DISK=""
 BOOTMODS=0
 MODROOT=""
@@ -32,7 +33,22 @@ MODROOT=""
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MINIX_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-OBJDIR="${OBJDIR:-$MINIX_ROOT/../obj}"
+if [ -n "${OBJDIR:-}" ]; then
+    OBJDIR="$OBJDIR"
+else
+    OBJDIR="$MINIX_ROOT/../obj.intrgcc"
+fi
+if [ ! -d "$OBJDIR" ]; then
+    echo "Object directory not found: $OBJDIR" >&2
+    echo "Expected obj.intrgcc outputs. Build with -O obj.intrgcc first." >&2
+    exit 1
+fi
+if [ "${ALLOW_LEGACY_OBJ:-0}" != "1" ] && [ -d "$MINIX_ROOT/../obj" ] && \
+    [ "$(cd "$OBJDIR" && pwd)" = "$(cd "$MINIX_ROOT/../obj" && pwd)" ]; then
+    echo "Refusing legacy OBJDIR ($OBJDIR)." >&2
+    echo "Use obj.intrgcc or set ALLOW_LEGACY_OBJ=1 to override." >&2
+    exit 1
+fi
 
 # Boot module layout (must match kernel constants)
 MODULE_BASE_ADDR="${MODULE_BASE_ADDR:-0x81000000}"
@@ -201,13 +217,37 @@ QEMU_ARGS+=(-bios default)
 
 # Kernel
 if [ -n "$KERNEL" ]; then
-    QEMU_ARGS+=(-kernel "$KERNEL")
-else
-    # Default kernel path
-    KERNEL_PATH="${KERNEL_PATH:-/usr/obj/minix/riscv64/minix/kernel/kernel}"
-    if [ -f "$KERNEL_PATH" ]; then
-        QEMU_ARGS+=(-kernel "$KERNEL_PATH")
+    if [ ! -f "$KERNEL" ]; then
+        echo "Kernel image not found: $KERNEL" >&2
+        exit 1
     fi
+    SELECTED_KERNEL="$KERNEL"
+    QEMU_ARGS+=(-kernel "$SELECTED_KERNEL")
+else
+    # Prefer in-tree kernel for the selected object directory.
+    if [ -z "${KERNEL_PATH:-}" ]; then
+        KERNEL_PATH="$OBJDIR/minix/kernel/kernel"
+    fi
+    if [ -n "${KERNEL_PATH:-}" ] && [ -f "$KERNEL_PATH" ]; then
+        SELECTED_KERNEL="$KERNEL_PATH"
+        QEMU_ARGS+=(-kernel "$SELECTED_KERNEL")
+    else
+        echo "Kernel image not found: ${KERNEL_PATH:-<unset>}" >&2
+        echo "Pass -k explicitly or build $OBJDIR/minix/kernel/kernel." >&2
+        exit 1
+    fi
+fi
+
+if [ -n "$SELECTED_KERNEL" ]; then
+    kernel_version=$(strings "$SELECTED_KERNEL" 2>/dev/null | \
+        grep -E -m1 "Minix( Cat)? [0-9]+\\.[0-9]+\\.[0-9]+ \\(" || true)
+    if [ -n "$kernel_version" ]; then
+        echo "Kernel image: $SELECTED_KERNEL [$kernel_version]"
+    else
+        echo "Kernel image: $SELECTED_KERNEL"
+    fi
+else
+    echo "Kernel image: <none> (will rely on firmware/disk boot path)"
 fi
 
 # Boot modules

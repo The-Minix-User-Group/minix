@@ -1,0 +1,67 @@
++ CFLAGS= -Wno-unused -Werror
++ cat /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/config.h.pre
++ echo
++ echo #define VERSION ""
++ runtest fgetln FGETLN
++ echo -Wno-unused -Werror -o test-fgetln /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-fgetln.c
+-Wno-unused -Werror -o test-fgetln /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-fgetln.c
++ -Wno-unused -Werror -o test-fgetln /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-fgetln.c
+/home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/configure: 26: -Wno-unused: not found
++ return 0
++ runtest getsubopt GETSUBOPT
++ echo -Wno-unused -Werror -o test-getsubopt /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-getsubopt.c
+-Wno-unused -Werror -o test-getsubopt /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-getsubopt.c
++ -Wno-unused -Werror -o test-getsubopt /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-getsubopt.c
+/home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/configure: 26: -Wno-unused: not found
++ return 0
++ runtest mmap MMAP
++ echo -Wno-unused -Werror -o test-mmap /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-mmap.c
+-Wno-unused -Werror -o test-mmap /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-mmap.c
++ -Wno-unused -Werror -o test-mmap /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-mmap.c
+/home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/configure: 26: -Wno-unused: not found
++ return 0
++ runtest ohash OHASH
++ echo -Wno-unused -Werror -o test-ohash /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-ohash.c
+-Wno-unused -Werror -o test-ohash /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-ohash.c
++ -Wno-unused -Werror -o test-ohash /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-ohash.c
+/home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/configure: 26: -Wno-unused: not found
++ return 0
++ runtest strcasestr STRCASESTR
++ echo -Wno-unused -Werror -o test-strcasestr /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strcasestr.c
+-Wno-unused -Werror -o test-strcasestr /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strcasestr.c
++ -Wno-unused -Werror -o test-strcasestr /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strcasestr.c
+/home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/configure: 26: -Wno-unused: not found
++ return 0
++ runtest strlcat STRLCAT
++ echo -Wno-unused -Werror -o test-strlcat /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strlcat.c
+-Wno-unused -Werror -o test-strlcat /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strlcat.c
++ -Wno-unused -Werror -o test-strlcat /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strlcat.c
+/home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/configure: 26: -Wno-unused: not found
++ return 0
++ runtest strlcpy STRLCPY
++ echo -Wno-unused -Werror -o test-strlcpy /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strlcpy.c
+-Wno-unused -Werror -o test-strlcpy /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strlcpy.c
++ -Wno-unused -Werror -o test-strlcpy /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strlcpy.c
+/home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/configure: 26: -Wno-unused: not found
++ return 0
++ runtest strnlen STRNLEN
++ echo -Wno-unused -Werror -o test-strnlen /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strnlen.c
+-Wno-unused -Werror -o test-strnlen /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strnlen.c
++ -Wno-unused -Werror -o test-strnlen /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strnlen.c
+/home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/configure: 26: -Wno-unused: not found
++ return 0
++ runtest strptime STRPTIME
++ echo -Wno-unused -Werror -o test-strptime /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strptime.c
+-Wno-unused -Werror -o test-strptime /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strptime.c
++ -Wno-unused -Werror -o test-strptime /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strptime.c
+/home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/configure: 26: -Wno-unused: not found
++ return 0
++ runtest strsep STRSEP
++ echo -Wno-unused -Werror -o test-strsep /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strsep.c
+-Wno-unused -Werror -o test-strsep /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strsep.c
++ -Wno-unused -Werror -o test-strsep /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/test-strsep.c
+/home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/configure: 26: -Wno-unused: not found
++ return 0
++ echo
++ cat /home/donz/minix/tools/mandoc/../../external/bsd/mdocml/bin/mandoc/../../dist/config.h.post
++ exit 0

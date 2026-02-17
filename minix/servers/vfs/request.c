@@ -340,6 +340,11 @@ static int req_getdents_actual(
   vmp = find_vmnt(fs_e);
   assert(vmp != NULL);
 
+  if (!(vmp->m_fs_flags & RES_64BIT) && (pos > INT_MAX)) {
+	/* FS does not support 64-bit off_t and 32 bits is not enough */
+	return EINVAL;
+  }
+
   if (direct) {
 	grant_id = cpf_grant_direct(fs_e, buf, size, CPF_WRITE);
   } else {
@@ -356,10 +361,6 @@ static int req_getdents_actual(
   m.m_vfs_fs_getdents.grant = grant_id;
   m.m_vfs_fs_getdents.mem_size = size;
   m.m_vfs_fs_getdents.seek_pos = pos;
-  if (!(vmp->m_fs_flags & RES_64BIT) && (pos > INT_MAX)) {
-	/* FS does not support 64-bit off_t and 32 bits is not enough */
-	return EINVAL;
-  }
 
   r = fs_sendrec(fs_e, &m);
 
@@ -899,8 +900,12 @@ static int req_readwrite_actual(endpoint_t fs_e, ino_t inode_nr, off_t pos,
 
   vmp = find_vmnt(fs_e);
 
+  if ((!(vmp->m_fs_flags & RES_64BIT)) && (pos > INT_MAX)) {
+	return EINVAL;
+  }
+
   grant_id = cpf_grant_magic(fs_e, user_e, user_addr, num_of_bytes,
-			     (rw_flag==READING ? CPF_WRITE:CPF_READ) | cpflag);
+				     (rw_flag==READING ? CPF_WRITE:CPF_READ) | cpflag);
   if (grant_id == -1)
 	  panic("req_readwrite: cpf_grant_magic failed");
 
@@ -909,9 +914,6 @@ static int req_readwrite_actual(endpoint_t fs_e, ino_t inode_nr, off_t pos,
   m.m_vfs_fs_readwrite.inode = inode_nr;
   m.m_vfs_fs_readwrite.grant = grant_id;
   m.m_vfs_fs_readwrite.seek_pos = pos;
-  if ((!(vmp->m_fs_flags & RES_64BIT)) && (pos > INT_MAX)) {
-	return EINVAL;
-  }
   m.m_vfs_fs_readwrite.nbytes = num_of_bytes;
 
   /* Send/rec request */

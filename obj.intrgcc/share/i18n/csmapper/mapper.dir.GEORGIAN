@@ -1,0 +1,10 @@
+# GEORGIAN
+GEORGIAN-ACADEMY/UCS            mapper_std      GEORGIAN/GEORGIAN-ACADEMY%UCS.mps
+UCS/GEORGIAN-ACADEMY            mapper_std      GEORGIAN/UCS%GEORGIAN-ACADEMY.mps
+GEORGIAN-ACADEMY:OldCapital/UCS mapper_std      GEORGIAN/GEORGIAN-ACADEMY@OldCapital%UCS.mps
+UCS/GEORGIAN-ACADEMY:OldCapital mapper_std      GEORGIAN/UCS%GEORGIAN-ACADEMY@OldCapital.mps
+GEORGIAN-PS/UCS                 mapper_std      GEORGIAN/GEORGIAN-PS%UCS.mps
+UCS/GEORGIAN-PS                 mapper_std      GEORGIAN/UCS%GEORGIAN-PS.mps
+GEORGIAN-PS:OldCapital/UCS      mapper_std      GEORGIAN/GEORGIAN-PS@OldCapital%UCS.mps
+UCS/GEORGIAN-PS:OldCapital      mapper_std      GEORGIAN/UCS%GEORGIAN-PS@OldCapital.mps
+

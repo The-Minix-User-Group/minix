@@ -1,0 +1,16 @@
+./service/virtio_blk_mmio
+./usr/include/c++/bits/riscv32
+./usr/include/c++/bits/riscv64
+./usr/include/g++/backward
+./usr/include/g++/debug
+./usr/include/g++/decimal
+./usr/include/g++/experimental
+./usr/include/g++/ext
+./usr/include/g++/parallel
+./usr/include/g++/tr1
+./usr/include/g++/tr1_impl
+./usr/include/minix/virtio_mmio.h
+./usr/lib/libgcc.a
+./usr/lib/libgcc_eh.a
+./usr/lib/libgcov.a
+./usr/lib/libvirtio_mmio.a

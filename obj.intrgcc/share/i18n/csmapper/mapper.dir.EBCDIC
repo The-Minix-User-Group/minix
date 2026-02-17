@@ -1,0 +1,32 @@
+# EBCDIC
+EBCDIC-AT-DE/UCS                mapper_std      EBCDIC/EBCDIC-AT-DE%UCS.mps
+UCS/EBCDIC-AT-DE                mapper_std      EBCDIC/EBCDIC-AT-DE%UCS.mps
+EBCDIC-AT-DE-A/UCS              mapper_std      EBCDIC/EBCDIC-AT-DE-A%UCS.mps
+UCS/EBCDIC-AT-DE-A              mapper_std      EBCDIC/EBCDIC-AT-DE-A%UCS.mps
+EBCDIC-CA-FR/UCS                mapper_std      EBCDIC/EBCDIC-CA-FR%UCS.mps
+UCS/EBCDIC-CA-FR                mapper_std      EBCDIC/EBCDIC-CA-FR%UCS.mps
+EBCDIC-DK-NO/UCS                mapper_std      EBCDIC/EBCDIC-DK-NO%UCS.mps
+UCS/EBCDIC-DK-NO                mapper_std      EBCDIC/EBCDIC-DK-NO%UCS.mps
+EBCDIC-DK-NO-A/UCS              mapper_std      EBCDIC/EBCDIC-DK-NO-A%UCS.mps
+UCS/EBCDIC-DK-NO-A              mapper_std      EBCDIC/EBCDIC-DK-NO-A%UCS.mps
+EBCDIC-ES/UCS                   mapper_std      EBCDIC/EBCDIC-ES%UCS.mps
+UCS/EBCDIC-ES                   mapper_std      EBCDIC/EBCDIC-ES%UCS.mps
+EBCDIC-ES-A/UCS                 mapper_std      EBCDIC/EBCDIC-ES-A%UCS.mps
+UCS/EBCDIC-ES-A                 mapper_std      EBCDIC/EBCDIC-ES-A%UCS.mps
+EBCDIC-ES-S/UCS                 mapper_std      EBCDIC/EBCDIC-ES-S%UCS.mps
+UCS/EBCDIC-ES-S                 mapper_std      EBCDIC/EBCDIC-ES-S%UCS.mps
+EBCDIC-FI-SE/UCS                mapper_std      EBCDIC/EBCDIC-FI-SE%UCS.mps
+UCS/EBCDIC-FI-SE                mapper_std      EBCDIC/EBCDIC-FI-SE%UCS.mps
+EBCDIC-FI-SE-A/UCS              mapper_std      EBCDIC/EBCDIC-FI-SE-A%UCS.mps
+UCS/EBCDIC-FI-SE-A              mapper_std      EBCDIC/EBCDIC-FI-SE-A%UCS.mps
+EBCDIC-FR/UCS                   mapper_std      EBCDIC/EBCDIC-FR%UCS.mps
+UCS/EBCDIC-FR                   mapper_std      EBCDIC/EBCDIC-FR%UCS.mps
+EBCDIC-IT/UCS                   mapper_std      EBCDIC/EBCDIC-IT%UCS.mps
+UCS/EBCDIC-IT                   mapper_std      EBCDIC/EBCDIC-IT%UCS.mps
+EBCDIC-PT/UCS                   mapper_std      EBCDIC/EBCDIC-PT%UCS.mps
+UCS/EBCDIC-PT                   mapper_std      EBCDIC/EBCDIC-PT%UCS.mps
+EBCDIC-UK/UCS                   mapper_std      EBCDIC/EBCDIC-UK%UCS.mps
+UCS/EBCDIC-UK                   mapper_std      EBCDIC/EBCDIC-UK%UCS.mps
+EBCDIC-US/UCS                   mapper_std      EBCDIC/EBCDIC-US%UCS.mps
+UCS/EBCDIC-US                   mapper_std      EBCDIC/EBCDIC-US%UCS.mps
+

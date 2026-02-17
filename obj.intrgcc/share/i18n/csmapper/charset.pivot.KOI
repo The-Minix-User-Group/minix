@@ -1,0 +1,21 @@
+# $NetBSD: charset.pivot.KOI.src,v 1.1 2006/09/16 08:38:20 tnozaki Exp $
+
+ISO-5427		UCS			1
+UCS			ISO-5427		1
+KOI7			UCS			1
+UCS			KOI7			1
+KOI8                            UCS                            1
+UCS                             KOI8                           1
+KOI8-C                          UCS                            1
+UCS                             KOI8-C                         1
+KOI8-E                          UCS                            1
+UCS                             KOI8-E                         1
+KOI8-R                          UCS                            1
+UCS                             KOI8-R                         1
+KOI8-RU                         UCS                            1
+UCS                             KOI8-RU                        1
+KOI8-T                          UCS                            1
+UCS                             KOI8-T                         1
+KOI8-U                          UCS                            1
+UCS                             KOI8-U                         1
+

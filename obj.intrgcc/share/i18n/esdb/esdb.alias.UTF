@@ -1,0 +1,20 @@
+# UTF
+utf-7                           UTF-7
+utf-8                           UTF-8
+utf8                            UTF-8
+utf-16                          UTF-16
+ucs-2                           UTF-16
+unicode                         UTF-16
+utf-16be                        UTF-16BE
+ucs-2be                         UTF-16BE
+unicodebig                      UTF-16BE
+utf-16le                        UTF-16LE
+ucs-2le                         UTF-16LE
+unicodelittle                   UTF-16LE
+utf-32                          UTF-32
+ucs-4                           UTF-32
+utf-32be                        UTF-32BE
+ucs-4be                         UTF-32BE
+utf-32le                        UTF-32LE
+ucs-4le                         UTF-32LE
+

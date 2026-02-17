@@ -1,0 +1,28 @@
+# APPLE
+CELTIC/UCS                      mapper_std                      APPLE/CELTIC%UCS.mps
+UCS/CELTIC                      mapper_std                      APPLE/UCS%CELTIC.mps
+CENTEURO/UCS                    mapper_std                      APPLE/CENTEURO%UCS.mps
+UCS/CENTEURO                    mapper_std                      APPLE/UCS%CENTEURO.mps
+CROATIAN/UCS                    mapper_std                      APPLE/CROATIAN%UCS.mps
+UCS/CROATIAN                    mapper_std                      APPLE/UCS%CROATIAN.mps
+CYRILLIC/UCS                    mapper_std                      APPLE/CYRILLIC%UCS.mps
+UCS/CYRILLIC                    mapper_std                      APPLE/UCS%CYRILLIC.mps
+DINGBATS/UCS                    mapper_std                      APPLE/DINGBATS%UCS.mps
+UCS/DINGBATS                    mapper_std                      APPLE/UCS%DINGBATS.mps
+GAELIC/UCS                      mapper_std                      APPLE/GAELIC%UCS.mps
+UCS/GAELIC                      mapper_std                      APPLE/UCS%GAELIC.mps
+GREEK/UCS                       mapper_std                      APPLE/GREEK%UCS.mps
+UCS/GREEK                       mapper_std                      APPLE/UCS%GREEK.mps
+ICELAND/UCS                     mapper_std                      APPLE/ICELAND%UCS.mps
+UCS/ICELAND                     mapper_std                      APPLE/UCS%ICELAND.mps
+INUIT/UCS                       mapper_std                      APPLE/INUIT%UCS.mps
+UCS/INUIT                       mapper_std                      APPLE/UCS%INUIT.mps
+ROMAN/UCS                       mapper_std                      APPLE/ROMAN%UCS.mps
+UCS/ROMAN                       mapper_std                      APPLE/UCS%ROMAN.mps
+ROMANIAN/UCS                    mapper_std                      APPLE/ROMANIAN%UCS.mps
+UCS/ROMANIAN                    mapper_std                      APPLE/UCS%ROMANIAN.mps
+THAI/UCS                        mapper_std                      APPLE/THAI%UCS.mps
+UCS/THAI                        mapper_std                      APPLE/UCS%THAI.mps
+TURKISH/UCS                     mapper_std                      APPLE/TURKISH%UCS.mps
+UCS/TURKISH                     mapper_std                      APPLE/UCS%TURKISH.mps
+

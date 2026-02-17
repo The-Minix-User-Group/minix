@@ -1,0 +1,5 @@
+# $NetBSD: CP.src,v 1.1 2003/06/27 08:40:51 tshiozak Exp $
+
+NAME		"CP1161"
+ENCODING	"NONE"
+DEFCSID		"CP1161"	0

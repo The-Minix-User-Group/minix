@@ -3,7 +3,7 @@
 # RISC-V 64-bit test runner for MINIX 3
 #
 # Usage:
-#   ./run_tests.sh [kernel|user|all]
+#   ./run_tests.sh [kernel|user|build|gate|all]
 #
 
 set -e
@@ -364,6 +364,43 @@ run_build_tests() {
     fi
 }
 
+run_smoke_gate() {
+    local gate_script="$SCRIPT_DIR/multi_smoke_gate.sh"
+    local bootmodroot="${DESTDIR:-$DESTDIR_DEFAULT}"
+    local rounds="${SMOKE_ROUNDS:-2}"
+    local timeout_sec="${SMOKE_GATE_TIMEOUT:-140}"
+    local args=()
+
+    log_info "Running multi-run smoke gate..."
+
+    if [ ! -x "$gate_script" ]; then
+        log_skip "multi_smoke_gate.sh not found, skipping gate"
+        return
+    fi
+    if [ ! -f "$KERNEL" ]; then
+        log_skip "Kernel not found at $KERNEL, skipping gate"
+        return
+    fi
+    if [ -z "$bootmodroot" ] || [ ! -d "$bootmodroot" ]; then
+        log_skip "DESTDIR not found, skipping gate"
+        return
+    fi
+
+    args+=(--kernel "$KERNEL" --destdir "$bootmodroot" --rounds "$rounds" --timeout "$timeout_sec")
+    if [ -n "${SMOKE_DISK_IMAGE:-}" ]; then
+        args+=(--disk-image "$SMOKE_DISK_IMAGE")
+    fi
+    if [ -n "${SMOKE_NO_DISK:-}" ]; then
+        args+=(--without-disk)
+    fi
+
+    if "$gate_script" "${args[@]}"; then
+        log_pass "Multi-run smoke gate"
+    else
+        log_fail "Multi-run smoke gate"
+    fi
+}
+
 #
 # Main
 #
@@ -377,15 +414,20 @@ case "${1:-all}" in
     build)
         run_build_tests
         ;;
+    gate)
+        run_smoke_gate
+        ;;
     all)
         run_build_tests
         echo ""
         run_user_tests
         echo ""
         run_kernel_tests
+        echo ""
+        run_smoke_gate
         ;;
     *)
-        echo "Usage: $0 [kernel|user|build|all]"
+        echo "Usage: $0 [kernel|user|build|gate|all]"
         exit 1
         ;;
 esac

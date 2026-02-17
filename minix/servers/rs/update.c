@@ -272,6 +272,7 @@ int sys_upd_flags;
   struct rprocpub *src_rpub;
   struct rprocpub *dst_rpub;
   int pid;
+  int src_proc, dst_proc;
   endpoint_t endpoint;
 
   src_rp = *src_rpp;
@@ -299,10 +300,16 @@ int sys_upd_flags;
   /* Reassign pids and endpoints. */
   src_rp->r_pid = dst_rp->r_pid;
   src_rp->r_pub->endpoint = dst_rp->r_pub->endpoint;
-  rproc_ptr[_ENDPOINT_P(src_rp->r_pub->endpoint)] = src_rp;
+  if ((r = rs_isokprocnr(src_rp->r_pub->endpoint, &src_proc)) != OK)
+    panic("RS: update: invalid source endpoint %d: %d",
+        src_rp->r_pub->endpoint, r);
+  rproc_ptr[src_proc] = src_rp;
   dst_rp->r_pid = pid;
   dst_rp->r_pub->endpoint = endpoint;
-  rproc_ptr[_ENDPOINT_P(dst_rp->r_pub->endpoint)] = dst_rp;
+  if ((r = rs_isokprocnr(dst_rp->r_pub->endpoint, &dst_proc)) != OK)
+    panic("RS: update: invalid destination endpoint %d: %d",
+        dst_rp->r_pub->endpoint, r);
+  rproc_ptr[dst_proc] = dst_rp;
 
   /* Update in-RS priv structs */
   if ((r = sys_getpriv(&src_rp->r_priv, src_rp->r_pub->endpoint)) != OK)
@@ -1008,4 +1015,3 @@ void end_srv_update(struct rprocupd *rpupd, int result, int reply_flag)
       printf("RS: %s ended the %s\n", srv_to_string(surviving_rp),
           srv_upd_to_string(rpupd));
 }
-

@@ -7,7 +7,7 @@ INCS+=	acpi.h audio_fw.h bitmap.h \
 	bdev.h blockdriver.h blockdriver_mt.h \
 	board.h bpf.h btrace.h \
 	callnr.h chardriver.h clkconf.h com.h \
-	config.h const.h cpufeature.h \
+	config.h const.h cpufeature.h version.h \
 	debug.h devio.h devman.h dmap.h \
 	driver.h drivers.h drvlib.h ds.h \
 	endpoint.h fb.h fsdriver.h fslib.h gpio.h gcov.h hash.h \
