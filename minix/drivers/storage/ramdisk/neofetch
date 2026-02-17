@@ -23,7 +23,7 @@ memline="unavailable (/proc not mounted)"
 srv_count="n/a"
 srv_total="n/a"
 srv_active="n/a"
-srv_source="off"
+srv_source="auto"
 core_state="unknown"
 core_missing="n/a"
 build_id="n/a"
@@ -41,6 +41,60 @@ format_uptime() {
 	else
 		uptime_human="${mins}m"
 	fi
+}
+
+probe_services_procfs() {
+	svc_seen=""
+	srv_count_num=0
+
+	[ -d /proc/service ] || return 1
+
+	for svc_path in /proc/service/*; do
+		[ -e "$svc_path" ] || continue
+		svc="${svc_path##*/}"
+		case " $svc_seen " in
+		*" $svc "*) ;;
+		*)
+			svc_seen="$svc_seen $svc"
+			srv_count_num=$((srv_count_num + 1))
+			;;
+		esac
+	done
+
+	[ "$srv_count_num" -gt 0 ] || return 1
+
+	srv_source="procfs"
+	srv_count="$srv_count_num"
+	srv_active="$srv_count_num"
+	srv_total="$srv_count_num"
+
+	core_required="rs vm pm sched vfs ds memory mib pfs procfs init"
+	core_missing_list=""
+	for svc in $core_required; do
+		if [ "$svc" = "init" ]; then
+			if [ -r /proc/1/psinfo ] || [ -d /proc/1 ]; then
+				:
+			else
+				core_missing_list="$core_missing_list $svc"
+			fi
+			continue
+		fi
+
+		case " $svc_seen " in
+		*" $svc "*) ;;
+		*) core_missing_list="$core_missing_list $svc" ;;
+		esac
+	done
+
+	if [ -z "$core_missing_list" ]; then
+		core_state="ok"
+		core_missing="none"
+	else
+		core_state="missing"
+		core_missing="${core_missing_list# }"
+	fi
+
+	return 0
 }
 
 if uname_s="$(uname -s 2>/dev/null)"; then
@@ -144,10 +198,15 @@ case "$rootdev" in
 	;;
 esac
 
-# Service probing is intentionally opt-in. The default "off" mode avoids
-# heavy procfs reads that can trigger noisy VM/mfs diagnostics on early boot.
-service_probe="${NEOFETCH_SERVICE_PROBE:-off}"
+# Service probing defaults to procfs-based auto mode. This avoids the heavier
+# ps-based probing path unless explicitly requested.
+service_probe="${NEOFETCH_SERVICE_PROBE:-auto}"
 case "$service_probe" in
+auto|procfs)
+	if ! probe_services_procfs; then
+		srv_source="procfs-unavailable"
+	fi
+	;;
 ps)
 	if command -v ps >/dev/null 2>&1; then
 		ps_blob="$(ps -ax 2>/dev/null)"
@@ -202,6 +261,8 @@ EOF
 				core_state="missing"
 				core_missing="${core_missing_list# }"
 			fi
+		else
+			srv_source="ps-partial"
 		fi
 	else
 		srv_source="ps-unavailable"
