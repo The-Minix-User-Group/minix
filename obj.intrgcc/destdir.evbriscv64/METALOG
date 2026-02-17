@@ -11983,3 +11983,10 @@
 ./usr/lib/fonts//koi8-r.fnt type=file uname=root gname=wheel mode=0755 size=9728 time=1769777061.0 sha256=d5deb54e9f3923378a63b2b8740fcc979e93a96a291060580ad73925fdd98d23
 ./usr/lib/fonts//koi8-u.fnt type=file uname=root gname=wheel mode=0755 size=4096 time=1769777061.0 sha256=53b7dfe4576b65f395001c5eb4b1a9197d4d5d018a968112fa9130633f3af010
 ./usr/lib/fonts//polish.fnt type=file uname=root gname=wheel mode=0755 size=4096 time=1769777061.0 sha256=0ddf37a846e3cc54744878e269b8daaee3ccc92c41973d4955f8b564cfdef421
+./service/pm type=file uname=root gname=wheel mode=0755 size=114147 time=1771287859.0 sha256=b0ca81c848051b50f1b19ebceaae9b38f78de319761a838f2ae2ef2bf6ea00fa
+./service/memory type=file uname=root gname=wheel mode=0755 size=4763238 time=1771287859.0 sha256=ebc3a6862044dd9797da843f6d0fd185b953d823d7f40c16063b300d130c1f65
+./service/mib type=file uname=root gname=wheel mode=0755 size=122324 time=1771287937.0 sha256=ce8698f057cebef7f72c0bb28f4e1b2ed441937f3ce9a2ef0288e4b8cd111029
+./service/pm type=file uname=root gname=wheel mode=0755 size=114147 time=1771288101.0 sha256=62ef48121874cac6866505a42b8cf961a2602954052e9cd6336659c47238fde0
+./service/mib type=file uname=root gname=wheel mode=0755 size=122324 time=1771288101.0 sha256=0508aa57903c61aeab461c50e8e21e63d3b59361e747b45bf59d3e4278e4e0be
+./service/pm type=file uname=root gname=wheel mode=0755 size=114147 time=1771288157.0 sha256=81f0a88a4d4229c0ba0b691cafdb7b329c6238388678c83f8fb2b4eb2a8576b0
+./service/mib type=file uname=root gname=wheel mode=0755 size=122324 time=1771288160.0 sha256=8aa53731a01a37099bb61a5cda6ca976e102095cdbabef8730e71d15c4803de3

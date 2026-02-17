@@ -7,6 +7,8 @@ d--755 0 0
   kill ---755 0 0 kill
   ls ---755 0 0 ls
   ps ---755 0 0 ps
+  uname ---755 0 0 uname
+  pfetch ---755 0 0 pfetch
   fsck_mfs ---755 0 0 fsck_mfs
   mount ---755 0 0 mount
  umount ---755 0 0 umount
