@@ -1,7 +1,7 @@
 # RISC-V MINIX Kernel Build Log / RISC-V MINIX 内核构建日志
 
 **Last updated / 最后更新**: 2026-02-18
-**Version / 版本**: 1.23
+**Version / 版本**: 1.24
 **Purpose / 用途**: Append-only record of build commands and outcomes. / 记录构建命令与结果（追加式）。
 
 **Baseline note / 基线说明**: active build/run baseline is `obj.intrgcc`; any
@@ -1068,6 +1068,40 @@ Dual-VM link-local check / 双 VM 链路本地复测:
 - `minix/lib/Makefile`
 - `minix/lib/libvirtio_mmio/Makefile`
 - `minix/drivers/net/virtio_net_mmio/Makefile`
+
+### Entry 34 — Wire `libvirtio_mmio` Into Top-Level lib Build Chain (2026-02-18) / 将 `libvirtio_mmio` 接入顶层 lib 构建链
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Profile / 轮廓**: `obj.intrgcc`
+
+**Symptom / 现象**:
+- After Entry 33 changes, next CI run (`22139502194`) still failed at the same
+  point:
+  - `ld: cannot find -lvirtio_mmio` while linking `virtio_net_mmio`.
+
+**Refined root cause / 细化根因**:
+- `distribution` library phase is driven by top-level `lib/Makefile`.
+- We had added `libvirtio_mmio` only in `minix/lib/Makefile`, but not in
+  `lib/Makefile` MINIX subdir chain. Therefore CI still did not install
+  `libvirtio_mmio` into `destdir/usr/lib` before driver link.
+
+**Fix / 修复**:
+1. Updated `lib/Makefile`:
+   - Added RISC-V gated subdir:
+     - `.if (${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv")`
+     - `SUBDIR+= ../minix/lib/libvirtio_mmio`
+     - `.endif`
+2. Kept Entry 33 change in `minix/lib/Makefile` for local MINIX-only build path
+   consistency.
+
+**Validation status / 验证状态**:
+- New commit queued for next CI tag run; success criterion is clearing
+  `virtio_net_mmio` link step without `cannot find -lvirtio_mmio`.
+
+**Evidence / 证据**:
+- `lib/Makefile`
+- `minix/lib/Makefile`
+- `README-RISCV64.md`
 
 ### Entry 32 — Fix RISC-V `ld.elf_so` Reloc Macro Build Break in CI (2026-02-18) / 修复 CI 中 RISC-V `ld.elf_so` 重定位宏编译失败
 **Workspace / 工作区**: `/home/donz/minix`  

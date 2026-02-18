@@ -61,6 +61,10 @@ SUBDIR+=	../minix/lib/libclkconf \
 		../minix/lib/libi2cdriver
 .endif
 
+.if (${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv")
+SUBDIR+=	../minix/lib/libvirtio_mmio
+.endif
+
 .if (${MKMAGIC} == "yes")
 SUBDIR+=	../minix/lib/libmagicrt
 .endif
