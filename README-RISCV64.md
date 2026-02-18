@@ -9,18 +9,18 @@ targeting the QEMU virt platform.
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.10
-- 最后更新：2026-02-17
+- 版本：1.11
+- 最后更新：2026-02-18
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.10
-- Last updated: 2026-02-17
+- Version: 1.11
+- Last updated: 2026-02-18
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
 
-## 当前状态（截至 2026-02-17）/ Current Status (as of 2026-02-17)
+## 当前状态（截至 2026-02-18）/ Current Status (as of 2026-02-18)
 
 **中文**
 - 构建：可通过（需使用 workaround 组合，见本文构建命令与 `RISC64-STATUS.md`）
@@ -29,6 +29,10 @@ targeting the QEMU virt platform.
 - ramdisk 已内置 `neofetch`（`pfetch` 兼容包装），默认服务统计来源为 `/proc/service`。
 - `obj.intrgcc` 独立构建链路已跑通：`tools(MKGCC=yes,MKGCCCMDS=yes) -> distribution -> QEMU`，不再出现 `Boot module not found: ds`
 - 含盘 smoke 已复测：`virtio_blk_mmio` 在 `-i <disk image>` 轮廓下可正常初始化。
+- `ping6` 稳定性已补强：`::1`（含不带 `-c` 的持续发送路径）与 dual-VM
+  `fe80::...%vio0` 验收均通过，不再复现用户态 `SIGSEGV (bad addr 0x0)`。
+- 公网连通性已在 QEMU user-net（slirp）模式验证通过：可从来宾 `ping 10.0.2.2`
+  与 `ping 1.1.1.1`。
 - 关键风险：`procfs` safecopy 回退噪声、SMP 未实现（详见 `issue.md`）
 - A4 已闭环：`mkdisk` 产物在 S-mode U-Boot 链路下可从磁盘镜像启动到 shell。
 - 进度估计：约 80%（启动链路与基础用户态已稳定，主要剩余问题集中在噪声收敛与稳定性增强）
@@ -47,6 +51,11 @@ targeting the QEMU virt platform.
   (`tools` with `MKGCC=yes` and `MKGCCCMDS=yes` -> `distribution` -> `QEMU`);
   `Boot module not found: ds` is no longer reproduced on this profile.
 - With-disk smoke has been revalidated: `virtio_blk_mmio` initializes in `-i <disk image>` profile.
+- `ping6` stability is strengthened: `::1` (including no-`-c` continuous mode) and
+  dual-VM `fe80::...%vio0` checks pass without reproducing userland
+  `SIGSEGV (bad addr 0x0)`.
+- Public reachability is validated in QEMU user-net (slirp): guest can
+  `ping 10.0.2.2` and `ping 1.1.1.1`.
 - Key risks: procfs safecopy fallback noise and SMP not implemented
   (see `issue.md`)
 - A4 is closed: `mkdisk` artifacts now boot from disk image via the S-mode U-Boot chain.
@@ -232,23 +241,31 @@ MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
 ./minix/tests/riscv64/run_tests.sh all
 ```
 
-**中文（截至 2026-02-16）**
+**中文（截至 2026-02-18）**
 - 用户态编译测试：通过（脚本使用 in-tree toolchain + sysroot，统一 `-std=gnu99`）。
 - 内核启动：通过，日志可见 `MINIX` banner、`VFS: init_root done`、`init: exec /bin/sh /etc/rc`。
 - 交互冒烟：通过，在 QEMU shell 中执行 `echo SMOKE_OK` 返回 `SMOKE_OK`。
 - 增量复测：通过，`ps -aux` 返回进程列表且不再 SIGSEGV；`cat /proc/meminfo` 可正常输出。
 - 含盘复测：通过，`-i <disk image>` 轮廓下 `virtio_blk_mmio` 报告 capacity/initialized。
-- 已知未完成：SMP 仍为 skip（not yet implemented）；`procfs` safecopy 噪声与 GCC-only ABI 参数兼容仍待收敛。
+- IPv6 复测：通过，`/sbin/ping6 ::1`（不带 `-c`）与 dual-VM
+  `fe80::...%vio0` 均不再复现 `SIGSEGV`。
+- 公网可达性：通过，QEMU user-net（slirp）模式下可 `ping 10.0.2.2` 与
+  `ping 1.1.1.1`。
+- 已知未完成：SMP 仍为 skip（not yet implemented）；`procfs` safecopy 噪声仍待收敛。
 
-**English (as of 2026-02-16)**
+**English (as of 2026-02-18)**
 - Userland compile tests: pass (in-tree toolchain + sysroot, `-std=gnu99`).
 - Kernel boot: pass; logs show `MINIX` banner, `VFS: init_root done`, and `init: exec /bin/sh /etc/rc`.
 - Interactive smoke: pass; running `echo SMOKE_OK` in QEMU shell returns `SMOKE_OK`.
 - Incremental retest: pass; `ps -aux` no longer crashes and `cat /proc/meminfo` returns expected output.
 - With-disk retest: pass; in `-i <disk image>` profile, `virtio_blk_mmio` reports
   capacity/initialized.
-- Remaining gaps: SMP remains skipped (not yet implemented); procfs safecopy noise and
-  GCC-only ABI-flag compatibility still need convergence.
+- IPv6 retest: pass; `/sbin/ping6 ::1` (no `-c`) and dual-VM
+  `fe80::...%vio0` no longer reproduce `SIGSEGV`.
+- Public reachability: pass in QEMU user-net (slirp) with successful
+  `ping 10.0.2.2` and `ping 1.1.1.1`.
+- Remaining gaps: SMP remains skipped (not yet implemented); procfs safecopy noise
+  still needs convergence.
 
 #### 5.1 启动稳定化验证记录 / Boot Stabilization Validation
 
@@ -529,14 +546,25 @@ python3 ./minix/tests/riscv64/safecopy_triage.py /tmp/qemu-smoke.log
      no longer fail with `Permission denied`.
    - Action: keep `lwip -> pm` IPC permission intact when editing `system.conf`.
 
-9. **`ping6` scoped link-local 崩溃（#35，待修）**
-   - 现状：`ping6 -c 1 ::1` 正常，但 `ping6 -c 1 fe80::...%vio0` 可能触发
-     用户态 `SIGSEGV (bad addr 0x0)`。
-   - 建议：优先排查 `ping6` 作用域地址（`%ifname`）路径的空指针与错误分支处理。
-   **`ping6` scoped link-local crash (#35, open)**
-   - Status: `ping6 -c 1 ::1` works, but `ping6 -c 1 fe80::...%vio0` may crash in
-     userspace with `SIGSEGV (bad addr 0x0)`.
-   - Action: audit `ping6` scoped-address (`%ifname`) parsing/binding error paths first.
+9. **`ping6` scoped link-local 崩溃（#35，已修复）**
+   - 现状：Minix 路径已改为单调时钟软定时发送节拍 + `SO_RCVTIMEO` 接收超时；
+     `ping6 ::1`（不带 `-c`）与 dual-VM `fe80::...%vio0` 验收均通过。
+   - 建议：将 `::1` 连续发送与 dual-VM link-local 场景纳入常规回归门禁。
+   **`ping6` scoped link-local crash (#35, fixed)**
+   - Status: Minix path now uses monotonic soft-timer pacing plus
+     `SO_RCVTIMEO`; both no-count `ping6 ::1` and dual-VM
+     `fe80::...%vio0` checks pass.
+   - Action: keep both scenarios in regular regression gates.
+
+10. **QEMU bridge 外网模式依赖宿主预配置（网络验收注意项）**
+   - 现状：若宿主缺少 bridge helper 配置（例如无 `/etc/qemu/bridge.conf`），
+     `-netdev bridge` 会直接失败。
+   - 建议：先用 slirp 完成公网可达性验收，再按宿主网络拓扑补齐 bridge 方案。
+   **QEMU bridge external networking requires host preconfiguration**
+   - Status: without host bridge-helper setup (for example missing
+     `/etc/qemu/bridge.conf`), `-netdev bridge` fails immediately.
+   - Action: validate reachability with slirp first, then enable bridge mode
+     with host-specific bridge setup.
 
 详细证据与文件行号见 `issue.md`。  
 See `issue.md` for evidence and file/line references.
@@ -626,6 +654,15 @@ cd minix/tests/riscv64
 # 交互冒烟 / Interactive smoke
 # 在 shell 提示符下执行：echo SMOKE_OK
 ```
+
+网络备注 / Networking notes:
+- 默认 `qemu-riscv64.sh -n` 使用 user-net（slirp），可先用于公网连通性验收。
+  Default `qemu-riscv64.sh -n` uses user-net (slirp), which is suitable for
+  first-pass public reachability checks.
+- 若出现 `hostfwd=tcp::2222-:22` 端口占用，可改用
+  `/tmp/qemu-riscv64-nohostfwd.sh` 或先释放宿主 2222 端口。
+  If `hostfwd=tcp::2222-:22` conflicts, use `/tmp/qemu-riscv64-nohostfwd.sh`
+  or free host port 2222 first.
 
 ### 使用 mkdisk 进行 U-Boot 纯磁盘启动 / Disk-only Boot with mkdisk + U-Boot
 
@@ -724,5 +761,5 @@ MINIX is licensed under BSD. See LICENSE in the source tree.
 
 ---
 
-**最后更新 / Last updated**：2026-02-17  
-**版本 / Version**：1.10
+**最后更新 / Last updated**：2026-02-18  
+**版本 / Version**：1.11

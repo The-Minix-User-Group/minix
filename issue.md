@@ -1,7 +1,7 @@
 # MINIX RISC-V Port Issues / MINIX RISC-V 移植问题清单
 
 **Date / 日期**: 2026-02-18  
-**Version / 版本**: 1.31
+**Version / 版本**: 1.32
 **Scope / 范围**: RISC-V 64-bit port, evidence includes file/line references.
 
 本文件记录 RISC-V 64 位移植的具体问题与证据（含文件/行号），并给出修复建议。  
@@ -898,18 +898,21 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   - Since `-q` (reduced output path) still crashes before command completion,
     fault source is likely earlier than formatting/verbose print path, and may
     involve recvmsg/link-local raw-ICMPv6 delivery (lwIP or socket copy path).
-  - 2026-02-18 latest fix in `sbin/ping6/ping6.c` (`main` receive loop):
-    for `__minix`, bypass `poll` wait path and use `recvmsg(..., MSG_DONTWAIT)`
-    with `EAGAIN/EWOULDBLOCK` backoff (`usleep(10000)`), while keeping
-    non-Minix poll path unchanged.
-  - 2026-02-18 dual-VM L2 retest after rebuild (`obj.intrgcc`) passes:
-    - VM-A/VM-B via QEMU `-netdev socket` with distinct MACs;
-    - VM-A command `/sbin/ping6 -q -c 1 fe80::5054:ff:fe12:3457%vio0`
-      returns `RC=0` with no `SIGSEGV`/`pagefault`;
-    - log: `/tmp/qemu-ping6-ll-dualvm-postfix5.log`.
-  - 2026-02-18 multi-round stability check in same dual-VM setup:
-    - 5 consecutive runs all `RC=0`, `fatal=0`;
-    - log: `/tmp/qemu-ping6-ll-dualvm-postfix6-multirun.log`.
+  - 2026-02-18 final stabilization in `sbin/ping6/ping6.c` (Minix path):
+    - use monotonic soft-timer pacing in main loop instead of SIGALRM-driven
+      retransmit pacing;
+    - set `SO_RCVTIMEO` to keep receive wait bounded;
+    - keep non-Minix poll/timer path unchanged;
+    - for Minix verbose extension-header socket options, downgrade unsupported
+      setsockopt calls to warnings instead of hard exit.
+  - 2026-02-18 retest after rebuild (`obj.intrgcc`) confirms no-crash path:
+    - `/sbin/ping6 ::1` (no `-c`) remains stable in repro window;
+    - `/sbin/ping6 -c 5 ::1` returns normal success statistics;
+    - dual-VM command `/sbin/ping6 -q -c 1 fe80::5054:ff:fe12:3457%vio0`
+      returns `RC=0` with no `SIGSEGV`/`pagefault`.
+  - Evidence logs:
+    - `/tmp/qemu-ping6-loopback-nocount-softtimer-20260218.log`
+    - `/tmp/qemu-ping6-dual-softtimer-20260218.log`
 - Priority assessment / 优先级评估:
   - `P1` (user-visible crash on a common IPv6 diagnostic path).
 - Status / 状态:
@@ -1143,13 +1146,13 @@ This section archives items with code-level fixes landed (some may still require
   历史 P1 #34：`service lwip` 已补充 `pm` IPC 权限，修复
   raw socket 鉴权链路（`getnuid/getepinfo -> PM_GETEPINFO`）导致的
   `ping/ping6` 误报 `Permission denied`。
-- Former P1 #35: `sbin/ping6/ping6.c` now uses Minix-specific nonblocking
-  `recvmsg(MSG_DONTWAIT)` receive loop (instead of poll-block path), eliminating
-  the dual-VM link-local crash signature (`SIGSEGV ... bad addr 0x0`) in
-  repeated `fe80::...%vio0` validation.
-  历史 P1 #35：`sbin/ping6/ping6.c` 在 Minix 路径改为非阻塞
-  `recvmsg(MSG_DONTWAIT)` 接收循环（绕开 poll 阻塞路径），在 dual-VM
-  `fe80::...%vio0` 重复验收中不再出现 `SIGSEGV ... bad addr 0x0` 崩溃签名。
+- Former P1 #35: `sbin/ping6/ping6.c` now uses Minix-specific monotonic
+  soft-timer send pacing plus `SO_RCVTIMEO` receive timeout, eliminating the
+  dual-VM link-local crash signature (`SIGSEGV ... bad addr 0x0`) while keeping
+  non-Minix poll/timer behavior unchanged.
+  历史 P1 #35：`sbin/ping6/ping6.c` 在 Minix 路径改为“单调时钟软定时发送节拍 +
+  `SO_RCVTIMEO` 接收超时”，在 dual-VM `fe80::...%vio0` 验收中不再复现
+  `SIGSEGV ... bad addr 0x0` 崩溃签名，并保持非 Minix 路径行为不变。
 - Former A4 (disk-only U-Boot handoff): `mkdisk.sh` now emits a BSS-inclusive
   `kernel.bin` payload, boots it with `go 0x80200000`, and documents the
   required S-mode U-Boot launch chain (`-bios default -kernel ..._smode/uboot.elf`);

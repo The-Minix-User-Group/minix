@@ -261,7 +261,9 @@ static int	 get_hoplim(struct msghdr *);
 static int	 get_pathmtu(struct msghdr *);
 static struct in6_pktinfo *get_rcvpktinfo(struct msghdr *);
 static void	 onsignal(int);
+#ifndef __minix
 static void	 retransmit(void);
+#endif
 __dead static void	 onsigexit(int);
 static size_t	 pingerlen(void);
 static int	 pinger(void);
@@ -292,7 +294,9 @@ __dead static void	 usage(void);
 int
 main(int argc, char *argv[])
 {
+#ifndef __minix
 	struct itimerval itimer;
+#endif
 	struct sockaddr_storage from;
 	struct addrinfo hints;
 	int cc;
@@ -320,6 +324,12 @@ main(int argc, char *argv[])
 #endif
 	struct timespec now;
 	double exitat = 0.0;
+#ifdef __minix
+	double interval_sec = 0.0;
+	double next_tx = 0.0;
+	double stop_tx = 0.0;
+	int tx_finished = 0;
+#endif
 #ifndef __minix
 	int timeout;
 	struct pollfd fdmaskp[1];
@@ -639,6 +649,17 @@ main(int argc, char *argv[])
 	if ((s = prog_socket(res->ai_family, res->ai_socktype,
 	    res->ai_protocol)) < 0)
 		err(1, "socket");
+#ifdef __minix
+	{
+		struct timeval rcvto;
+
+		rcvto.tv_sec = 0;
+		rcvto.tv_usec = 10000;
+		if (prog_setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &rcvto,
+		    sizeof(rcvto)) < 0)
+			warn("setsockopt(SO_RCVTIMEO)");
+	}
+#endif
 
 	/* set the source address if specified. */
 	if ((options & F_SRCADDR) &&
@@ -681,26 +702,51 @@ main(int argc, char *argv[])
 
 #ifdef IPV6_RECVHOPOPTS
 		if (prog_setsockopt(s, IPPROTO_IPV6, IPV6_RECVHOPOPTS, &opton,
-		    sizeof(opton)))
+		    sizeof(opton))) {
+#ifdef __minix
+			warn("setsockopt(IPV6_RECVHOPOPTS)");
+#else
 			err(1, "setsockopt(IPV6_RECVHOPOPTS)");
+#endif
+		}
 #else  /* old adv. API */
 		if (prog_setsockopt(s, IPPROTO_IPV6, IPV6_HOPOPTS, &opton,
-		    sizeof(opton)))
+		    sizeof(opton))) {
+#ifdef __minix
+			warn("setsockopt(IPV6_HOPOPTS)");
+#else
 			err(1, "setsockopt(IPV6_HOPOPTS)");
+#endif
+		}
 #endif
 #ifdef IPV6_RECVDSTOPTS
 		if (prog_setsockopt(s, IPPROTO_IPV6, IPV6_RECVDSTOPTS, &opton,
-		    sizeof(opton)))
+		    sizeof(opton))) {
+#ifdef __minix
+			warn("setsockopt(IPV6_RECVDSTOPTS)");
+#else
 			err(1, "setsockopt(IPV6_RECVDSTOPTS)");
+#endif
+		}
 #else  /* old adv. API */
 		if (prog_setsockopt(s, IPPROTO_IPV6, IPV6_DSTOPTS, &opton,
-		    sizeof(opton)))
+		    sizeof(opton))) {
+#ifdef __minix
+			warn("setsockopt(IPV6_DSTOPTS)");
+#else
 			err(1, "setsockopt(IPV6_DSTOPTS)");
+#endif
+		}
 #endif
 #ifdef IPV6_RECVRTHDRDSTOPTS
 		if (prog_setsockopt(s, IPPROTO_IPV6, IPV6_RECVRTHDRDSTOPTS, &opton,
-		    sizeof(opton)))
+		    sizeof(opton))) {
+#ifdef __minix
+			warn("setsockopt(IPV6_RECVRTHDRDSTOPTS)");
+#else
 			err(1, "setsockopt(IPV6_RECVRTHDRDSTOPTS)");
+#endif
+		}
 #endif
 	}
 
@@ -825,12 +871,22 @@ main(int argc, char *argv[])
 
 #ifdef IPV6_RECVRTHDR
 		if (prog_setsockopt(s, IPPROTO_IPV6, IPV6_RECVRTHDR, &opton,
-		    sizeof(opton)))
+		    sizeof(opton))) {
+#ifdef __minix
+			warn("setsockopt(IPV6_RECVRTHDR)");
+#else
 			err(1, "setsockopt(IPV6_RECVRTHDR)");
+#endif
+		}
 #else  /* old adv. API */
 		if (prog_setsockopt(s, IPPROTO_IPV6, IPV6_RTHDR, &opton,
-		    sizeof(opton)))
+		    sizeof(opton))) {
+#ifdef __minix
+			warn("setsockopt(IPV6_RTHDR)");
+#else
 			err(1, "setsockopt(IPV6_RTHDR)");
+#endif
+		}
 #endif
 	}
 
@@ -1039,6 +1095,16 @@ main(int argc, char *argv[])
 	(void)signal(SIGINFO, onsignal);
 #endif
 
+#ifdef __minix
+	if ((options & F_FLOOD) == 0) {
+		if (ntransmitted == 0 && pinger() == -1)
+			tx_finished = 1;
+		interval_sec =
+		    (double)interval.tv_sec + (double)interval.tv_usec / 1000000.0;
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		next_tx = timespec_to_sec(&now) + interval_sec;
+	}
+#else
 	if ((options & F_FLOOD) == 0) {
 		(void)signal(SIGALRM, onsignal);
 		itimer.it_interval = interval;
@@ -1047,6 +1113,7 @@ main(int argc, char *argv[])
 		if (ntransmitted == 0)
 			retransmit();
 	}
+#endif
 
 	if (deadline > 0) {
 		clock_gettime(CLOCK_MONOTONIC, &now);
@@ -1072,11 +1139,13 @@ main(int argc, char *argv[])
 		}
 
 		/* signal handling */
+#ifndef __minix
 		if (seenalrm) {
 			retransmit();
 			seenalrm = 0;
 			continue;
 		}
+#endif
 		if (seenint) {
 			onsigexit(SIGINT);
 			seenint = 0;
@@ -1092,7 +1161,30 @@ main(int argc, char *argv[])
 		if (options & F_FLOOD)
 			(void)pinger();
 #ifdef __minix
-		recv_flags = MSG_DONTWAIT;
+		if ((options & F_FLOOD) == 0) {
+			double now_sec;
+
+			clock_gettime(CLOCK_MONOTONIC, &now);
+			now_sec = timespec_to_sec(&now);
+
+			if (!tx_finished && now_sec >= next_tx) {
+				if (pinger() == -1) {
+					tx_finished = 1;
+					if (nreceived != 0) {
+						double wait_sec = 2.0 * tmax / 1000.0;
+						if (wait_sec < 1.0)
+							wait_sec = 1.0;
+						stop_tx = now_sec + wait_sec;
+					} else
+						stop_tx = now_sec + 10.0;
+				} else
+					next_tx = now_sec + interval_sec;
+			}
+
+			if (tx_finished && stop_tx > 0.0 && now_sec >= stop_tx)
+				break;
+		}
+		recv_flags = 0;
 #else
 		recv_flags = 0;
 		if (options & F_FLOOD) {
@@ -1131,7 +1223,6 @@ main(int argc, char *argv[])
 		if (cc < 0) {
 #ifdef __minix
 			if (errno == EAGAIN || errno == EWOULDBLOCK) {
-				usleep(10000);
 				continue;
 			}
 #endif
@@ -1193,6 +1284,7 @@ onsignal(int sig)
  * retransmit --
  *	This routine transmits another ping6.
  */
+#ifndef __minix
 static void
 retransmit(void)
 {
@@ -1220,6 +1312,7 @@ retransmit(void)
 	(void)signal(SIGALRM, onsigexit);
 	(void)setitimer(ITIMER_REAL, &itimer, NULL);
 }
+#endif
 
 /*
  * pinger --
