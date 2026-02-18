@@ -141,9 +141,6 @@ jobs:
             -V NOGCCERROR=yes \
             -V MKGCC=yes \
             -V MKGCCCMDS=no \
-            -V MKPIC=no \
-            -V MKPICLIB=no \
-            -V MKPICINSTALL=no \
             -V MKCXX=no \
             -V MKLIBSTDCXX=no \
             -V MKLIBOBJC=no \

@@ -9,13 +9,13 @@ targeting the QEMU virt platform.
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.18
+- 版本：1.19
 - 最后更新：2026-02-18
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.18
+- Version: 1.19
 - Last updated: 2026-02-18
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
@@ -748,6 +748,10 @@ qemu-system-riscv64 -machine virt -m 256M -nographic \
   `cannot find -lgcc` / `cannot find -lgcc_eh`，
   需要保证该步启用 `-V MKGCC=yes -V MKGCCCMDS=no`，以在 `destdir/usr/lib`
   生成目标侧 `libgcc.a` / `libgcc_eh.a`（CI clean 环境默认 `MKGCC=no`）。
+- 若 `distribution` 阶段在 `lua` 动态链接时报
+  `ld: cannot find -lgcc_s`，不要在该 CI 路径里强制
+  `-V MKPIC=no -V MKPICLIB=no -V MKPICINSTALL=no`，否则 `libgcc_s`
+  不会按期望生成/安装；当前 release workflow 已移除这三个覆盖参数。
 
 ## 性能优化 / Performance Optimization
 

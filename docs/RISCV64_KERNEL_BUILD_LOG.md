@@ -1,7 +1,7 @@
 # RISC-V MINIX Kernel Build Log / RISC-V MINIX 内核构建日志
 
 **Last updated / 最后更新**: 2026-02-18
-**Version / 版本**: 1.18
+**Version / 版本**: 1.19
 **Purpose / 用途**: Append-only record of build commands and outcomes. / 记录构建命令与结果（追加式）。
 
 **Baseline note / 基线说明**: active build/run baseline is `obj.intrgcc`; any
@@ -1171,3 +1171,41 @@ Dual-VM link-local check / 双 VM 链路本地复测:
 
 **Evidence / 证据**:
 - `.github/workflows/release-riscv64.yml`
+
+### Entry 29 — Fix CI Missing `-lgcc_s` in Dynamic Link Stage (2026-02-18) / 修复 CI 动态链接阶段缺失 `-lgcc_s`
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Profile / 轮廓**: `obj.intrgcc`
+
+**Symptom / 现象**:
+- Release workflow moved past earlier toolchain gates, then failed in
+  `distribution` when linking dynamic targets (for example `lua`) with:
+  - `ld: cannot find -lgcc_s`
+
+**Root cause / 根因**:
+- Workflow previously forced PIC-related overrides in distribution step:
+  - `-V MKPIC=no`
+  - `-V MKPICLIB=no`
+  - `-V MKPICINSTALL=no`
+- Dynamic link products depend on shared GCC runtime (`libgcc_s`). Forcing the
+  above flags prevents expected PIC/shared runtime path and can drop `libgcc_s`
+  from target-side availability.
+
+**Fix / 修复**:
+1. Updated `/.github/workflows/release-riscv64.yml` (distribution step):
+   - Removed:
+     - `-V MKPIC=no`
+     - `-V MKPICLIB=no`
+     - `-V MKPICINSTALL=no`
+2. Kept the already-added `MKGCC` runtime toggles:
+   - `-V MKGCC=yes`
+   - `-V MKGCCCMDS=no`
+   to preserve `libgcc` runtime generation while allowing PIC defaults.
+
+**Validation status / 验证状态**:
+- Workflow patch committed for retrigger; confirmation depends on the next
+  GitHub Actions run completing `distribution` without `-lgcc_s` failure.
+
+**Evidence / 证据**:
+- `.github/workflows/release-riscv64.yml`
+- `README-RISCV64.md`
