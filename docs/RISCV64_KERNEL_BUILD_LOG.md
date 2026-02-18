@@ -1,7 +1,7 @@
 # RISC-V MINIX Kernel Build Log / RISC-V MINIX 内核构建日志
 
 **Last updated / 最后更新**: 2026-02-18
-**Version / 版本**: 1.22
+**Version / 版本**: 1.23
 **Purpose / 用途**: Append-only record of build commands and outcomes. / 记录构建命令与结果（追加式）。
 
 **Baseline note / 基线说明**: active build/run baseline is `obj.intrgcc`; any
@@ -1033,6 +1033,41 @@ Dual-VM link-local check / 双 VM 链路本地复测:
 **Evidence / 证据**:
 - `.github/workflows/release-riscv64.yml`
 - `README-RISCV64.md`
+
+### Entry 33 — Fix Missing `-lvirtio_mmio` in CI Distribution Link (2026-02-18) / 修复 CI distribution 链接缺失 `-lvirtio_mmio`
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Profile / 轮廓**: `obj.intrgcc`
+
+**Symptom / 现象**:
+- CI run (`22138682974`) failed in `Build distribution` while linking
+  `minix/drivers/net/virtio_net_mmio`:
+  - `ld: cannot find -lvirtio_mmio`
+
+**Root cause / 根因**:
+- `virtio_net_mmio` depends on `-lvirtio_mmio`, but `minix/lib/Makefile` did
+  not include `libvirtio_mmio` in the `riscv64/riscv` `SUBDIR` list.
+- As a result, the library was not guaranteed to be built/installed into
+  `destdir/usr/lib` before the driver link step.
+
+**Fix / 修复**:
+1. Updated `minix/lib/Makefile`:
+   - Added:
+     - `.if (${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv")`
+     - `SUBDIR+= libvirtio_mmio`
+     - `.endif`
+
+**Validation / 验证**:
+- Local targeted build confirms sequence and link now succeed:
+  1. `minix/lib/libvirtio_mmio` installs
+     `destdir.evbriscv64/usr/lib/libvirtio_mmio.a`
+  2. `minix/drivers/net/virtio_net_mmio` static link succeeds with
+     `-lvirtio_mmio`.
+
+**Evidence / 证据**:
+- `minix/lib/Makefile`
+- `minix/lib/libvirtio_mmio/Makefile`
+- `minix/drivers/net/virtio_net_mmio/Makefile`
 
 ### Entry 32 — Fix RISC-V `ld.elf_so` Reloc Macro Build Break in CI (2026-02-18) / 修复 CI 中 RISC-V `ld.elf_so` 重定位宏编译失败
 **Workspace / 工作区**: `/home/donz/minix`  

@@ -43,6 +43,10 @@ SUBDIR+=	libgpio
 SUBDIR+=	libi2cdriver
 .endif
 
+.if (${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv")
+SUBDIR+=	libvirtio_mmio
+.endif
+
 .if (${MKMAGIC} == "yes")
 SUBDIR+=	libmagicrt
 .endif

@@ -9,13 +9,13 @@ targeting the QEMU virt platform.
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.22
+- 版本：1.23
 - 最后更新：2026-02-18
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.22
+- Version: 1.23
 - Last updated: 2026-02-18
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
@@ -765,6 +765,10 @@ qemu-system-riscv64 -machine virt -m 256M -nographic \
   未定义（`mdreloc.c`），需要将 RISC-V 重定位 case 按 `ELFSIZE`
   映射到显式 `R_TYPE(64/32)`、`R_TYPE(TLS_DTPMOD64/32)`、
   `R_TYPE(TLS_DTPREL64/32)`，并为 `TLS_DTV_OFFSET` 提供兜底定义。
+- 若 `distribution` 阶段在 `virtio_net_mmio` 链接时报
+  `ld: cannot find -lvirtio_mmio`，需要确保 `minix/lib/Makefile`
+  在 `riscv64/riscv` 目标下包含 `SUBDIR+= libvirtio_mmio`，使该库先构建并
+  安装到 `destdir/usr/lib` 再链接网卡驱动。
 
 ## 性能优化 / Performance Optimization
 
