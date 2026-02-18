@@ -1,7 +1,7 @@
 # RISC-V MINIX Kernel Build Log / RISC-V MINIX 内核构建日志
 
 **Last updated / 最后更新**: 2026-02-18
-**Version / 版本**: 1.14
+**Version / 版本**: 1.15
 **Purpose / 用途**: Append-only record of build commands and outcomes. / 记录构建命令与结果（追加式）。
 
 **Baseline note / 基线说明**: active build/run baseline is `obj.intrgcc`; any
@@ -1032,3 +1032,36 @@ Dual-VM link-local check / 双 VM 链路本地复测:
 **Evidence / 证据**:
 - `.github/workflows/release-riscv64.yml`
 - `README-RISCV64.md`
+
+### Entry 25 — Fix CI `configure-gas` Failure on `riscv-ucb-minix` (2026-02-18) / 修复 CI 在 `riscv-ucb-minix` 上的 `configure-gas` 失败
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Profile / 轮廓**: `obj.intrgcc`
+
+**Symptom / 现象**:
+- GitHub Actions release workflow failed during `Build tools` at `tools/binutils`.
+- Error:
+  `configure: error: GAS does not know what format to use for target riscv-ucb-minix`.
+
+**Root cause / 根因**:
+- CI uses a fresh `external/gpl3/binutils/dist` prepared from
+  `binutils-2.23.2.tar.bz2` plus `external/gpl3/binutils/patches/*`.
+- Existing patch set had `riscv` entries for `linux/netbsd`, but no
+  `riscv*-*-minix*` mapping in `gas/configure.tgt`.
+- As a result, `fmt` remained unset for canonical target `riscv-ucb-minix`.
+
+**Fix / 修复**:
+1. Added patch:
+   `external/gpl3/binutils/patches/0012-riscv-gas-minix-target-format.patch`
+2. Patch content adds:
+   - `riscv*eb-*-minix*) fmt=elf endian=big em=minix ;;`
+   - `riscv*-*-minix*)   fmt=elf endian=little em=minix ;;`
+
+**Validation / 验证**:
+- Reproduced failure in a clean temp tree:
+  unpack tarball -> apply patches -> run `gas/configure --target=riscv64-elf32-minix`.
+- After adding patch `0012`, the same clean-tree configure run completes and
+  creates `config.status` + `Makefile` without the format error.
+
+**Evidence / 证据**:
+- `external/gpl3/binutils/patches/0012-riscv-gas-minix-target-format.patch`

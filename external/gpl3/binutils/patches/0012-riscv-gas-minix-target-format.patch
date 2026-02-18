@@ -1,0 +1,14 @@
+--- dist.orig/gas/configure.tgt
++++ dist/gas/configure.tgt
+@@ -362,8 +362,10 @@
+   ppc-*-lynxos*)			fmt=elf em=lynx ;;
+ 
+   riscv*eb-*-linux*)			fmt=elf endian=big em=linux ;;
+   riscv*eb-*-netbsd*)			fmt=elf endian=big em=nbsd ;;
++  riscv*eb-*-minix*)			fmt=elf endian=big em=minix ;;
+   riscv*-*-linux*)			fmt=elf endian=little em=linux ;;
+   riscv*-*-netbsd*)			fmt=elf endian=little em=nbsd ;;
++  riscv*-*-minix*)			fmt=elf endian=little em=minix ;;
+ 
+   s390-*-linux-*)			fmt=elf em=linux ;;
+   s390-*-tpf*)				fmt=elf ;;
