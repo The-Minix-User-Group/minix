@@ -1,7 +1,7 @@
 # MINIX RISC-V 64-bit Port Status / MINIX RISC-V 64 位移植状态
 
-**Date / 日期**: 2026-02-17  
-**Version / 版本**: 1.12
+**Date / 日期**: 2026-02-18  
+**Version / 版本**: 1.13
 **Status / 状态**: Phase 2 stabilization — boots to shell; P0 closed and key P1 hygiene fixes landed
 **Progress / 进度**: ~80% (boot/userland path stabilized; runtime-aware gate hardened; core follow-ups remain)
 
@@ -47,6 +47,11 @@
 - 已完成一次完整 `riscv64` 套件回归：`run_tests.sh all` 结果为
   `Passed=21, Failed=0, Skipped=1`，其中 `multi_smoke_gate` 为
   `4/4` 通过，runtime probe `4/4` 通过。
+- 本轮网络权限链路修复：`service lwip` IPC 白名单补充 `pm` 后，
+  raw socket 鉴权恢复，`ping/ping6` 不再因 `Permission denied` 失败
+  （详见 `issue.md` `#34`）。
+- 新发现待修：`ping6 fe80::...%vio0` 在用户态出现 `SIGSEGV (bad addr 0x0)`，
+  属于 scoped link-local 诊断路径崩溃（见 `issue.md` `#35`）。
 - 仍有待闭环风险：`procfs` safecopy 回退噪声（#17）。
 
 **English**
@@ -97,6 +102,11 @@
 - A full `riscv64` regression has been completed:
   `run_tests.sh all` reports `Passed=21, Failed=0, Skipped=1`,
   with `multi_smoke_gate` `4/4` pass and runtime probe `4/4` pass.
+- This cycle fixes raw-socket credential lookup permissioning for networking:
+  `service lwip` now allows IPC to `pm`, removing false `ping/ping6`
+  `Permission denied` failures (`issue.md` `#34`).
+- New open follow-up: `ping6 fe80::...%vio0` can still crash in userspace
+  (`SIGSEGV`, `bad addr 0x0`) on the scoped link-local path (`issue.md` `#35`).
 - Remaining open risk: procfs safecopy retry noise (#17).
 
 ## Build Status / 构建状态
@@ -219,6 +229,7 @@
 **Major / 重要**
 - #16: VFS service endpoint pre-resync path still needs stricter generation-safe validation.
 - #17: recoverable safecopy fallback noise on `/proc/*` path remains.
+- #35: `ping6 fe80::...%vio0` crashes in userspace (`SIGSEGV`) on scoped link-local path.
 - #23: RV64 `vm_memset` recovery plumbing is implemented and smoke-validated; targeted
   fault-injection validation is still required for full closure.
 

@@ -520,6 +520,24 @@ python3 ./minix/tests/riscv64/safecopy_triage.py /tmp/qemu-smoke.log
      without requiring `-mabi=lp64d` by default.
    - Action: keep new scripts/components on the same baseline to avoid regressions.
 
+8. **lwIP raw socket 权限误拒绝（#34，已修复）**
+   - 现状：`service lwip` 已补充 `pm` IPC 权限，`ping/ping6` 不再因
+     `Permission denied` 失败。
+   - 建议：后续如调整 `system.conf`，保持 `lwip -> pm` IPC 权限不回退。
+   **lwIP raw-socket permission false-denial (#34, fixed)**
+   - Status: `service lwip` now includes `pm` in IPC permissions; `ping/ping6`
+     no longer fail with `Permission denied`.
+   - Action: keep `lwip -> pm` IPC permission intact when editing `system.conf`.
+
+9. **`ping6` scoped link-local 崩溃（#35，待修）**
+   - 现状：`ping6 -c 1 ::1` 正常，但 `ping6 -c 1 fe80::...%vio0` 可能触发
+     用户态 `SIGSEGV (bad addr 0x0)`。
+   - 建议：优先排查 `ping6` 作用域地址（`%ifname`）路径的空指针与错误分支处理。
+   **`ping6` scoped link-local crash (#35, open)**
+   - Status: `ping6 -c 1 ::1` works, but `ping6 -c 1 fe80::...%vio0` may crash in
+     userspace with `SIGSEGV (bad addr 0x0)`.
+   - Action: audit `ping6` scoped-address (`%ifname`) parsing/binding error paths first.
+
 详细证据与文件行号见 `issue.md`。  
 See `issue.md` for evidence and file/line references.
 
