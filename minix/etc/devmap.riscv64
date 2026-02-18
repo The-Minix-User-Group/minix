@@ -26,7 +26,7 @@ ttyv2   virtio_console  2       # Virtual terminal 2
 ttyv3   virtio_console  3       # Virtual terminal 3
 
 # VirtIO network
-eth0    virtio_net      0       # First network interface
+eth0    virtio_net_mmio 0       # First network interface
 
 # VirtIO RNG
 random  virtio_rng      0       # Random number generator

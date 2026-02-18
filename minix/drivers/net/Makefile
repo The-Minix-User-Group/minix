@@ -16,6 +16,10 @@ SUBDIR+=	virtio_net
 SUBDIR+=	vt6105
 .endif # ${MACHINE_ARCH} == "i386"
 
+.if ${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv"
+SUBDIR+=	virtio_net_mmio
+.endif # ${MACHINE_ARCH} == "riscv64" || ${MACHINE_ARCH} == "riscv"
+
 .if ${MACHINE_ARCH} == "earm"
 SUBDIR+=	lan8710a
 .endif # ${MACHINE_ARCH} == "earm"

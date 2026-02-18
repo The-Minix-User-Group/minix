@@ -117,6 +117,10 @@ PROGRAMS+=		dd
 dir.dd:=	bin/dd
 PROGRAMS+=		cmp
 dir.cmp:=	usr.bin/cmp
+PROGRAMS+=		virtio_net_mmio
+dir.virtio_net_mmio:=	minix/drivers/net/virtio_net_mmio
+PROGRAMS+=		lwip
+dir.lwip:=	minix/net/lwip
 PROGRAMS+=		virtio_blk_mmio
 dir.virtio_blk_mmio:= minix/drivers/storage/virtio_blk_mmio
 .if ${RAMDISK_TESTS} == "1"
@@ -264,8 +268,8 @@ proto.gen: ${PROTO} ${PROTO_FILES} proto.dev ${PROGRAMS}
 	${STRIP} ${PROGRAMS}
 	# We are using the c preprocessor to generate proto.gen
 	# used in the mkfs tool.
-	${TOOL_CAT} ${PROTO} | ${CC} \
+	${TOOL_CAT} ${PROTO} | ${CPP} \
 	    	${RAMDISK_DEFINES} \
-		-E - | grep -v "^$$" | grep -v "#" >${.TARGET}
+		- | grep -v "^$$" | grep -v "#" >${.TARGET}
 
 .include <minix.service.mk>
