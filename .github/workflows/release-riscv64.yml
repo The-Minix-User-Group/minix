@@ -113,7 +113,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+          HARDENING_OFF="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -fno-stack-protector"
+          MKPCI=no HOST_CFLAGS="-O -fcommon ${HARDENING_OFF}" HOST_CXXFLAGS="-O ${HARDENING_OFF}" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
           ./build.sh -U -m "${MACHINE}" -O "${OBJDIR}" \
             -V AVAILABLE_COMPILER=gcc \
             -V ACTIVE_CC=gcc \
@@ -128,7 +129,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+          HARDENING_OFF="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -fno-stack-protector"
+          MKPCI=no HOST_CFLAGS="-O -fcommon ${HARDENING_OFF}" HOST_CXXFLAGS="-O ${HARDENING_OFF}" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
           ./build.sh -U -u -j"$(nproc)" -m "${MACHINE}" -O "${OBJDIR}" \
             -V AVAILABLE_COMPILER=gcc \
             -V ACTIVE_CC=gcc \

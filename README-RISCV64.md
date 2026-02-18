@@ -9,13 +9,13 @@ targeting the QEMU virt platform.
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.16
+- 版本：1.17
 - 最后更新：2026-02-18
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.16
+- Version: 1.17
 - Last updated: 2026-02-18
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
@@ -737,6 +737,13 @@ qemu-system-riscv64 -machine virt -m 256M -nographic \
   `*** Configuration riscv-ucb-minix not supported`（`configure-gcc`），
   需要确保 `external/gpl3/gcc/patches/0005-riscv-minix-config.patch`
   已包含在当前分支（该补丁为 fresh gcc dist 增加 `riscv*-*-minix*` 目标配置）。
+- 若 `distribution` 阶段在 `lib/csu` 出现
+  `*** buffer overflow detected ***` 且后续报
+  `internal compiler error: Aborted (program as)`，
+  说明 host 上的 fortify/stack-protector 与旧工具链组合不兼容。
+  当前 workflow 已在 `Build tools`/`Build distribution` 使用
+  `HARDENING_OFF="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -fno-stack-protector"`
+  作为 CI 规避参数。
 
 ## 性能优化 / Performance Optimization
 

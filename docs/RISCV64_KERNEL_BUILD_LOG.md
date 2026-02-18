@@ -1,7 +1,7 @@
 # RISC-V MINIX Kernel Build Log / RISC-V MINIX 内核构建日志
 
 **Last updated / 最后更新**: 2026-02-18
-**Version / 版本**: 1.16
+**Version / 版本**: 1.17
 **Purpose / 用途**: Append-only record of build commands and outcomes. / 记录构建命令与结果（追加式）。
 
 **Baseline note / 基线说明**: active build/run baseline is `obj.intrgcc`; any
@@ -1102,3 +1102,38 @@ Dual-VM link-local check / 双 VM 链路本地复测:
 
 **Evidence / 证据**:
 - `external/gpl3/gcc/patches/0005-riscv-minix-config.patch`
+
+### Entry 27 — Mitigate CI `as` Abort in `lib/csu` on Ubuntu 24 (2026-02-18) / 规避 Ubuntu 24 上 `lib/csu` 阶段 `as` 异常中止
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Profile / 轮廓**: `obj.intrgcc`
+
+**Symptom / 现象**:
+- Release workflow progressed into `distribution` and failed at `lib/csu`:
+  - `*** buffer overflow detected ***: terminated`
+  - `riscv64-elf32-minix-gcc: internal compiler error: Aborted (program as)`
+- Failures were observed on `crtend.S`, `crtn.S`, `crt0.S` assembly paths.
+
+**Root cause hypothesis / 根因判断**:
+- Freshly built legacy toolchain binaries (`as` from old binutils branch) run on
+  modern Ubuntu 24 host userspace and can trip fortify/stack-protector runtime
+  checks, causing host-side abort before target object emission.
+
+**Fix / 修复**:
+1. Updated CI workflow:
+   `/.github/workflows/release-riscv64.yml`
+2. Added host hardening-off flags in both `Build tools` and
+   `Build distribution` steps:
+   - `-U_FORTIFY_SOURCE`
+   - `-D_FORTIFY_SOURCE=0`
+   - `-fno-stack-protector`
+3. Applied via:
+   - `HOST_CFLAGS="-O -fcommon ${HARDENING_OFF}"`
+   - `HOST_CXXFLAGS="-O ${HARDENING_OFF}"`
+
+**Validation status / 验证状态**:
+- Workflow patch committed and retriggered by new CI tag run.
+- Runtime confirmation depends on completion of the new GitHub Actions run.
+
+**Evidence / 证据**:
+- `.github/workflows/release-riscv64.yml`
