@@ -44,6 +44,20 @@ __RCSID("$NetBSD: mdreloc.c,v 1.2 2015/03/27 23:14:53 matt Exp $");
 #include "debug.h"
 #include "rtld.h"
 
+#ifndef TLS_DTV_OFFSET
+#define TLS_DTV_OFFSET	0
+#endif
+
+#if ELFSIZE == 64
+#define R_TYPE_ADDR		R_TYPE(64)
+#define R_TYPE_TLS_DTPMOD	R_TYPE(TLS_DTPMOD64)
+#define R_TYPE_TLS_DTPREL	R_TYPE(TLS_DTPREL64)
+#else
+#define R_TYPE_ADDR		R_TYPE(32)
+#define R_TYPE_TLS_DTPMOD	R_TYPE(TLS_DTPMOD32)
+#define R_TYPE_TLS_DTPREL	R_TYPE(TLS_DTPREL32)
+#endif
+
 void _rtld_bind_start(void);
 void _rtld_relocate_nonplt_self(Elf_Dyn *, Elf_Addr);
 void *_rtld_bind(const Obj_Entry *, Elf_Word);
@@ -125,7 +139,7 @@ _rtld_relocate_nonplt_objects(Obj_Entry *obj)
 			break;
 		}
 
-		case R_TYPESZ(ADDR): {
+		case R_TYPE_ADDR: {
 			def = _rtld_find_symdef(r_symndx, obj, &defobj, false);
 			if (def == NULL)
 				return -1;
@@ -139,7 +153,7 @@ _rtld_relocate_nonplt_objects(Obj_Entry *obj)
 			break;
 		}
 
-		case R_TYPESZ(TLS_DTPMOD): {
+		case R_TYPE_TLS_DTPMOD: {
 			def = _rtld_find_symdef(r_symndx, obj, &defobj, false);
 			if (def == NULL)
 				return -1;
@@ -153,7 +167,7 @@ _rtld_relocate_nonplt_objects(Obj_Entry *obj)
 			break;
 		}
 
-		case R_TYPESZ(TLS_DTPREL): {
+		case R_TYPE_TLS_DTPREL: {
 			Elf_Addr old = *where;
 			Elf_Addr val = old;
 

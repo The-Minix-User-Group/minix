@@ -19,9 +19,11 @@
 
 # Drivers
 ./service/virtio_blk_mmio               base-driver
+./service/virtio_net_mmio               base-driver
 ./service/ns16550                       base-driver
 ./service/memory                        base-driver
 ./service/log                           base-driver
+./service/lwip                          base-server
 
 # Essential binaries
 ./bin/sh                                base-bin

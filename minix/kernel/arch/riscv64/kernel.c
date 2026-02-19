@@ -17,6 +17,8 @@ extern char __k_unpaged__kern_unpaged_end;
 extern char _kernel_phys_start;
 extern char _kernel_phys_end;
 extern char _kernel_size;
+extern u64_t __k_unpaged__boot_fdt;
+extern u64_t _boot_fdt;
 
 struct riscv_bootinfo {
 	u32_t magic;
@@ -112,6 +114,14 @@ void kernel_main(void)
 	/* Initialize direct console early */
 	direct_init();
 	direct_print("rv64: kernel_main\n");
+
+	/*
+	 * Boot entry runs from the unpaged namespace and stores a1 into
+	 * __k_unpaged__boot_fdt. Mirror it to the runtime symbol expected by
+	 * early BSP/FDT parsing.
+	 */
+	if (_boot_fdt == 0)
+		_boot_fdt = __k_unpaged__boot_fdt;
 
 	bsp_early_init();
 

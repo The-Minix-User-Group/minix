@@ -16,13 +16,20 @@ d--755 0 0
  grep ---755 0 0 grep
  sh ---755 0 0 sh
  dd ---755 0 0 dd
+ test_virtio_blk_mmio ---755 0 0 test_virtio_blk_mmio
 $
  sbin d--755 0 0
   minix-service ---755 0 0 minix-service
   sysenv ---755 0 0 sysenv
+  ifconfig ---755 0 0 ifconfig
+  route ---755 0 0 route
+  ping ---755 0 0 ping
+  ping6 ---755 0 0 ping6
  $
  service d--755 0 0
   virtio_blk_mmio ---755 0 0 virtio_blk_mmio
+  virtio_net_mmio ---755 0 0 virtio_net_mmio
+  lwip ---755 0 0 lwip
   mfs ---755 0 0 mfs
   procfs ---755 0 0 procfs
   input ---755 0 0 input

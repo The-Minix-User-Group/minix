@@ -24,9 +24,9 @@ Texinfo documentation system
                                 Update info/dir entries.
 * makeinfo: (texinfo)Invoking makeinfo.
                                 Translate Texinfo source.
-* texindex: (texinfo)Format with tex/texindex.
-                                Sort Texinfo index files.
 * texi2dvi: (texinfo)Format with texi2dvi.
                                 Print Texinfo documents.
 * texi2pdf: (texinfo)PDF Output.
                                 PDF output for Texinfo.
+* texindex: (texinfo)Format with tex/texindex.
+                                Sort Texinfo index files.

@@ -1,26 +1,26 @@
-# MINIX 3 RISC-V 64-bit Port Guide / MINIX 3 RISC-V 64-bit 移植指南
+# MINIX RISC-V 64-bit Port Guide / MINIX RISC-V 64-bit 移植指南
 
 ## 概述 / Overview
 
-本文档记录 MINIX 3 在 RISC-V 64-bit 架构上的移植与构建运行方法，面向 QEMU virt 平台。  
-This document describes the MINIX 3 RISC-V 64-bit port, including build/run procedures
+本文档记录 MINIX 在 RISC-V 64-bit 架构上的移植与构建运行方法，面向 QEMU virt 平台。  
+This document describes the MINIX RISC-V 64-bit port, including build/run procedures
 targeting the QEMU virt platform.
 
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.9
-- 最后更新：2026-02-17
+- 版本：1.25
+- 最后更新：2026-02-19
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.9
-- Last updated: 2026-02-17
+- Version: 1.25
+- Last updated: 2026-02-19
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
 
-## 当前状态（截至 2026-02-17）/ Current Status (as of 2026-02-17)
+## 当前状态（截至 2026-02-19）/ Current Status (as of 2026-02-19)
 
 **中文**
 - 构建：可通过（需使用 workaround 组合，见本文构建命令与 `RISC64-STATUS.md`）
@@ -29,8 +29,18 @@ targeting the QEMU virt platform.
 - ramdisk 已内置 `neofetch`（`pfetch` 兼容包装），默认服务统计来源为 `/proc/service`。
 - `obj.intrgcc` 独立构建链路已跑通：`tools(MKGCC=yes,MKGCCCMDS=yes) -> distribution -> QEMU`，不再出现 `Boot module not found: ds`
 - 含盘 smoke 已复测：`virtio_blk_mmio` 在 `-i <disk image>` 轮廓下可正常初始化。
-- 关键风险：`procfs` safecopy 回退噪声、SMP 未实现、GCC-only 增量链路 ABI 参数兼容性（#25，详见 `issue.md`）
-- 进度估计：约 76%（启动链路与基础用户态已稳定，主要剩余问题集中在噪声收敛与工具链细节）
+- `ping6` 稳定性已补强：`::1`（含不带 `-c` 的持续发送路径）与 dual-VM
+  `fe80::...%vio0` 验收均通过，不再复现用户态 `SIGSEGV (bad addr 0x0)`。
+- 公网连通性已在 QEMU user-net（slirp）模式验证通过：可从来宾 `ping 10.0.2.2`
+  与 `ping 1.1.1.1`。
+- Release 流水线已加入 QEMU 交互式 gate（`neofetch` + 关机链），并上传
+  smoke 日志 artifact（失败也保留日志）。
+- Nightly 流水线已固定 tag 格式为
+  `nightly-master-riscv64-YYYYMMDD-<sha>`，并将 5 件产物同步上传到
+  workflow artifacts 与 GitHub Release（prerelease）。
+- 关键风险：`procfs` safecopy 回退噪声、SMP 未实现（详见 `issue.md`）
+- A4 已闭环：`mkdisk` 产物在 S-mode U-Boot 链路下可从磁盘镜像启动到 shell。
+- 进度估计：约 80%（启动链路与基础用户态已稳定，主要剩余问题集中在噪声收敛与稳定性增强）
 - 代码更新（至 2026-01-06 01:00 前）：用户态 gp 初始化（crt0 + gp.c）、exec/ucontext 与
   VM 执行权限标记、IPC/缺页 ABI 修复（64 位地址、senda 参数顺序）。
 - 文档更新：2026-02-16 追加 `memset` 递归修复后的 ramdisk 复测结果，`ps -aux` 不再复现 SIGSEGV。
@@ -46,9 +56,21 @@ targeting the QEMU virt platform.
   (`tools` with `MKGCC=yes` and `MKGCCCMDS=yes` -> `distribution` -> `QEMU`);
   `Boot module not found: ds` is no longer reproduced on this profile.
 - With-disk smoke has been revalidated: `virtio_blk_mmio` initializes in `-i <disk image>` profile.
-- Key risks: procfs safecopy fallback noise, SMP not implemented, and GCC-only
-  incremental ABI-flag compatibility (#25; see `issue.md`)
-- Progress estimate: ~76% (boot + basic userland path stabilized; remaining work is mostly
+- `ping6` stability is strengthened: `::1` (including no-`-c` continuous mode) and
+  dual-VM `fe80::...%vio0` checks pass without reproducing userland
+  `SIGSEGV (bad addr 0x0)`.
+- Public reachability is validated in QEMU user-net (slirp): guest can
+  `ping 10.0.2.2` and `ping 1.1.1.1`.
+- The release workflow now enforces an interactive QEMU gate
+  (`neofetch` + shutdown chain) and uploads a smoke log artifact
+  even on failure.
+- The nightly workflow now uses the fixed tag format
+  `nightly-master-riscv64-YYYYMMDD-<sha>` and publishes the same five build
+  artifacts to both workflow artifacts and GitHub prerelease assets.
+- Key risks: procfs safecopy fallback noise and SMP not implemented
+  (see `issue.md`)
+- A4 is closed: `mkdisk` artifacts now boot from disk image via the S-mode U-Boot chain.
+- Progress estimate: ~80% (boot + basic userland path stabilized; remaining work is mostly
   noise/toolchain convergence)
 - Code updates (through 2026-01-06 01:00): userland gp init (crt0 + gp.c),
   exec/ucontext + VM exec flags, IPC/pagefault ABI fixes (64-bit addr, senda arg order).
@@ -230,23 +252,31 @@ MKPCI=no HOST_CFLAGS="-O -fcommon" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
 ./minix/tests/riscv64/run_tests.sh all
 ```
 
-**中文（截至 2026-02-16）**
+**中文（截至 2026-02-18）**
 - 用户态编译测试：通过（脚本使用 in-tree toolchain + sysroot，统一 `-std=gnu99`）。
 - 内核启动：通过，日志可见 `MINIX` banner、`VFS: init_root done`、`init: exec /bin/sh /etc/rc`。
 - 交互冒烟：通过，在 QEMU shell 中执行 `echo SMOKE_OK` 返回 `SMOKE_OK`。
 - 增量复测：通过，`ps -aux` 返回进程列表且不再 SIGSEGV；`cat /proc/meminfo` 可正常输出。
 - 含盘复测：通过，`-i <disk image>` 轮廓下 `virtio_blk_mmio` 报告 capacity/initialized。
-- 已知未完成：SMP 仍为 skip（not yet implemented）；`procfs` safecopy 噪声与 GCC-only ABI 参数兼容仍待收敛。
+- IPv6 复测：通过，`/sbin/ping6 ::1`（不带 `-c`）与 dual-VM
+  `fe80::...%vio0` 均不再复现 `SIGSEGV`。
+- 公网可达性：通过，QEMU user-net（slirp）模式下可 `ping 10.0.2.2` 与
+  `ping 1.1.1.1`。
+- 已知未完成：SMP 仍为 skip（not yet implemented）；`procfs` safecopy 噪声仍待收敛。
 
-**English (as of 2026-02-16)**
+**English (as of 2026-02-18)**
 - Userland compile tests: pass (in-tree toolchain + sysroot, `-std=gnu99`).
 - Kernel boot: pass; logs show `MINIX` banner, `VFS: init_root done`, and `init: exec /bin/sh /etc/rc`.
 - Interactive smoke: pass; running `echo SMOKE_OK` in QEMU shell returns `SMOKE_OK`.
 - Incremental retest: pass; `ps -aux` no longer crashes and `cat /proc/meminfo` returns expected output.
 - With-disk retest: pass; in `-i <disk image>` profile, `virtio_blk_mmio` reports
   capacity/initialized.
-- Remaining gaps: SMP remains skipped (not yet implemented); procfs safecopy noise and
-  GCC-only ABI-flag compatibility still need convergence.
+- IPv6 retest: pass; `/sbin/ping6 ::1` (no `-c`) and dual-VM
+  `fe80::...%vio0` no longer reproduce `SIGSEGV`.
+- Public reachability: pass in QEMU user-net (slirp) with successful
+  `ping 10.0.2.2` and `ping 1.1.1.1`.
+- Remaining gaps: SMP remains skipped (not yet implemented); procfs safecopy noise
+  still needs convergence.
 
 #### 5.1 启动稳定化验证记录 / Boot Stabilization Validation
 
@@ -509,14 +539,43 @@ python3 ./minix/tests/riscv64/safecopy_triage.py /tmp/qemu-smoke.log
    - Validation: in-tree `ld` now links RELAX-bearing archives without
      `unrecognized relocation (0x33)`.
 
-7. **GCC-only 增量构建 ABI 参数兼容性（#25）**  
-   - 表现：在显式 `ACTIVE_CC=gcc` 路径下，部分组件重建会报
-     `riscv64-elf32-minix-gcc: error: unrecognized command line option '-mabi=lp64d'`。  
-   - 建议：补齐 ABI 参数能力探测，并在 GCC 路径中统一可接受的 `-mabi` 组合。  
-   **GCC-only incremental ABI-flag compatibility (#25)**  
-   - Symptom: explicit `ACTIVE_CC=gcc` rebuild path can fail with
-     `unrecognized command line option '-mabi=lp64d'`.
-   - Action: add ABI-flag capability probing and normalize GCC-accepted `-mabi` selection.
+7. **GCC-only 增量构建 ABI 参数兼容性（#25，已修复）**  
+   - 现状：默认参数已收敛到 `-march=RV64IMAFD -mcmodel=medany`，不再默认依赖
+     `-mabi=lp64d`。  
+   - 建议：新脚本/新组件继续复用同一参数基线，避免局部回归。  
+   **GCC-only incremental ABI-flag compatibility (#25, fixed)**  
+   - Status: default flags now converge on `-march=RV64IMAFD -mcmodel=medany`,
+     without requiring `-mabi=lp64d` by default.
+   - Action: keep new scripts/components on the same baseline to avoid regressions.
+
+8. **lwIP raw socket 权限误拒绝（#34，已修复）**
+   - 现状：`service lwip` 已补充 `pm` IPC 权限，`ping/ping6` 不再因
+     `Permission denied` 失败。
+   - 建议：后续如调整 `system.conf`，保持 `lwip -> pm` IPC 权限不回退。
+   **lwIP raw-socket permission false-denial (#34, fixed)**
+   - Status: `service lwip` now includes `pm` in IPC permissions; `ping/ping6`
+     no longer fail with `Permission denied`.
+   - Action: keep `lwip -> pm` IPC permission intact when editing `system.conf`.
+
+9. **`ping6` scoped link-local 崩溃（#35，已修复）**
+   - 现状：Minix 路径已改为单调时钟软定时发送节拍 + `SO_RCVTIMEO` 接收超时；
+     `ping6 ::1`（不带 `-c`）与 dual-VM `fe80::...%vio0` 验收均通过。
+   - 建议：将 `::1` 连续发送与 dual-VM link-local 场景纳入常规回归门禁。
+   **`ping6` scoped link-local crash (#35, fixed)**
+   - Status: Minix path now uses monotonic soft-timer pacing plus
+     `SO_RCVTIMEO`; both no-count `ping6 ::1` and dual-VM
+     `fe80::...%vio0` checks pass.
+   - Action: keep both scenarios in regular regression gates.
+
+10. **QEMU bridge 外网模式依赖宿主预配置（网络验收注意项）**
+   - 现状：若宿主缺少 bridge helper 配置（例如无 `/etc/qemu/bridge.conf`），
+     `-netdev bridge` 会直接失败。
+   - 建议：先用 slirp 完成公网可达性验收，再按宿主网络拓扑补齐 bridge 方案。
+   **QEMU bridge external networking requires host preconfiguration**
+   - Status: without host bridge-helper setup (for example missing
+     `/etc/qemu/bridge.conf`), `-netdev bridge` fails immediately.
+   - Action: validate reachability with slirp first, then enable bridge mode
+     with host-specific bridge setup.
 
 详细证据与文件行号见 `issue.md`。  
 See `issue.md` for evidence and file/line references.
@@ -607,6 +666,44 @@ cd minix/tests/riscv64
 # 在 shell 提示符下执行：echo SMOKE_OK
 ```
 
+网络备注 / Networking notes:
+- 默认 `qemu-riscv64.sh -n` 使用 user-net（slirp），可先用于公网连通性验收。
+  Default `qemu-riscv64.sh -n` uses user-net (slirp), which is suitable for
+  first-pass public reachability checks.
+- 若出现 `hostfwd=tcp::2222-:22` 端口占用，可改用
+  `/tmp/qemu-riscv64-nohostfwd.sh` 或先释放宿主 2222 端口。
+  If `hostfwd=tcp::2222-:22` conflicts, use `/tmp/qemu-riscv64-nohostfwd.sh`
+  or free host port 2222 first.
+
+### 使用 mkdisk 进行 U-Boot 纯磁盘启动 / Disk-only Boot with mkdisk + U-Boot
+
+```bash
+# 1) 生成镜像（使用 obj.intrgcc 产物）
+OUTPUT=/tmp/minix-rv64-diskonly.img \
+DESTDIR=/home/donz/minix/obj.intrgcc \
+minix/releasetools/riscv64/mkdisk.sh
+
+# 2) 以 OpenSBI + U-Boot S-mode 方式从磁盘启动
+qemu-system-riscv64 -machine virt -m 256M -nographic \
+  -bios default \
+  -kernel /usr/lib/u-boot/qemu-riscv64_smode/uboot.elf \
+  -drive if=none,file=/tmp/minix-rv64-diskonly.img,format=raw,id=hd0 \
+  -device virtio-blk-device,drive=hd0
+```
+
+预期日志关键字 / Expected key log markers:
+- `Found U-Boot script /boot.scr.uimg`
+- `## Starting application at 0x80200000 ...`
+- `rv64: kernel_main`
+- `MINIX 4.0.0`
+- `virtio-blk-mmio: initialized`
+
+说明 / Notes:
+- `mkdisk.sh` 会在 root 分区放置 `/boot/kernel.bin`（包含 BSS 内容）、
+  `/boot/minix.modinfo` 与 `/boot/modules/*`，并由 `boot.scr` 执行 `go 0x80200000`。
+- 请使用上面的 S-mode U-Boot 链路；直接用
+  `/usr/lib/u-boot/qemu-riscv64/uboot.elf` 可能进入 M-mode 路径并触发异常。
+
 ## 构建输出 / Build Outputs
 
 1. **交叉编译工具链 / Toolchain**：`obj.intrgcc/tooldir.*/bin/riscv64-elf32-minix-*`
@@ -614,6 +711,114 @@ cd minix/tests/riscv64
 3. **系统库 / Libraries**：`obj.intrgcc/destdir.evbriscv64/usr/lib/`
 4. **服务器程序 / Servers**：`obj.intrgcc/destdir.evbriscv64/sbin/`
 5. **用户程序 / User programs**：`obj.intrgcc/destdir.evbriscv64/usr/bin/`
+
+## GitHub Actions Release Pipeline / GitHub Actions 自动发布流水线
+
+仓库已提供自动构建并发布到 GitHub Release 的流水线：  
+`/.github/workflows/release-riscv64.yml`
+
+触发方式 / Triggers:
+- `push` 到 tag（模式：`v*`）
+- 手动触发 `workflow_dispatch`（需输入 tag）
+
+流水线行为 / Pipeline behavior:
+1. 安装宿主依赖并按 `obj.intrgcc` 基线执行 `tools -> distribution`
+2. 调用 `minix/releasetools/riscv64/mkdisk.sh` 生成磁盘镜像并压缩
+3. 导出内核 ELF 与开发用 sysroot（头文件/库）
+4. 生成统一 `SHA256SUMS.txt`
+5. 执行 QEMU 交互式 gate（`neofetch` + 关机链），失败则阻断发布
+6. 上传 QEMU smoke 日志到 workflow artifact（步骤 `if: always()`）
+7. 自动创建/更新 GitHub Release 并上传以下产物
+
+构建产物命名规范（含构建提交 hash）/ Artifact naming (with commit hash):
+- `minix-cat-<tag>-<shortsha>-riscv64.img`
+- `minix-cat-<tag>-<shortsha>-riscv64.img.gz`
+- `minix-cat-<tag>-<shortsha>-riscv64.elf`
+- `minix-cat-<tag>-<shortsha>-riscv64-sysroot.tar.gz`
+- `SHA256SUMS.txt`
+
+注意 / Notes:
+- Release workflow 依赖 GitHub Actions 默认 `GITHUB_TOKEN`（`contents: write`）。
+- 若首次启用失败，请确认仓库 Actions 权限允许 workflow 写 Release。
+- `shortsha` 来自当前构建提交（`git rev-parse --short=12 $GITHUB_SHA`）。
+- 构建时间较长（完整 `distribution`），建议通过 tag 触发正式发布。
+- 若发布在 QEMU gate 阶段失败，请优先下载
+  `riscv64-qemu-smoke-log-<tag>-<sha>` 排查来宾输出。
+- 为降低 GitHub hosted runner 磁盘不足风险，workflow 在安装依赖前会执行
+  `Reclaim runner disk space`，清理预装大体积组件（dotnet/android/ghc/CodeQL）、
+  swap、docker 残留与 apt 缓存，并打印清理前后磁盘占用。
+- 若 `Build tools` 阶段出现
+  `GAS does not know what format to use for target riscv-ucb-minix`，
+  需要确保 `external/gpl3/binutils/patches/0012-riscv-gas-minix-target-format.patch`
+  已包含在当前分支（该补丁为 CI 的 fresh dist 提供 `riscv*-*-minix*` 目标格式映射）。
+- 若 `Build tools` 阶段出现
+  `*** Configuration riscv-ucb-minix not supported`（`configure-gcc`），
+  需要确保 `external/gpl3/gcc/patches/0005-riscv-minix-config.patch`
+  已包含在当前分支（该补丁为 fresh gcc dist 增加 `riscv*-*-minix*` 目标配置）。
+- 若 `distribution` 阶段在 `lib/csu` 出现
+  `*** buffer overflow detected ***` 且后续报
+  `internal compiler error: Aborted (program as)`，
+  说明 host 上的 fortify/stack-protector 与旧工具链组合不兼容。
+  当前 workflow 已在 `Build tools`/`Build distribution` 使用
+  `HARDENING_OFF="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -fno-stack-protector"`
+  作为 CI 规避参数。
+- 若 `distribution` 阶段在 `bind/dig` 链接时报
+  `cannot find -lgcc` / `cannot find -lgcc_eh`，
+  需要保证该步启用 `-V MKGCC=yes -V MKGCCCMDS=no`，以在 `destdir/usr/lib`
+  生成目标侧 `libgcc.a` / `libgcc_eh.a`（CI clean 环境默认 `MKGCC=no`）。
+- 若 `distribution` 阶段在 `lua` 动态链接时报
+  `ld: cannot find -lgcc_s`，不要在该 CI 路径里强制
+  `-V MKPIC=no -V MKPICLIB=no -V MKPICINSTALL=no`，否则 `libgcc_s`
+  不会按期望生成/安装；当前 release workflow 已移除这三个覆盖参数。
+- 若 `distribution` 阶段进一步报
+  `.../usr/lib/libgcc_s.so: undefined reference to 'mprotect'`，
+  需要确保 RISC-V `libgcc` 的 `enable-execute-stack` 选择为
+  `enable-execute-stack-empty.c`（而不是 `...-mprotect.c`），以避免在
+  MINIX 目标侧引入不可解析的 `mprotect` 依赖。
+- 若 `distribution` 阶段在 `libexec/ld.elf_so` 报
+  `R_TYPESZ` 隐式声明，以及 `ADDR`/`TLS_DTPMOD`/`TLS_DTPREL`
+  未定义（`mdreloc.c`），需要将 RISC-V 重定位 case 按 `ELFSIZE`
+  映射到显式 `R_TYPE(64/32)`、`R_TYPE(TLS_DTPMOD64/32)`、
+  `R_TYPE(TLS_DTPREL64/32)`，并为 `TLS_DTV_OFFSET` 提供兜底定义。
+- 若 `distribution` 阶段在 `virtio_net_mmio` 链接时报
+  `ld: cannot find -lvirtio_mmio`，需要确保构建链的系统库阶段会提前构建并
+  安装 `libvirtio_mmio`：
+  - `lib/Makefile`（distribution 实际使用的库构建入口）中为
+    `riscv64/riscv` 添加 `../minix/lib/libvirtio_mmio`
+  - `minix/lib/Makefile` 同步包含 `libvirtio_mmio`
+
+## GitHub Actions Nightly Pipeline / GitHub Actions 每日构建流水线
+
+Nightly workflow 文件：`/.github/workflows/nightly-riscv64.yml`
+
+触发方式 / Triggers:
+- `schedule`（UTC `20 18 * * *`，每日一次）
+- 手动触发 `workflow_dispatch`
+
+Nightly 行为 / Pipeline behavior:
+1. 与 release 相同的 `obj.intrgcc` 基线构建：`tools -> distribution`
+2. 产出并打包 5 件标准产物（`img/img.gz/elf/sysroot/SHA256SUMS`）
+3. 执行 QEMU 交互式 gate（`neofetch` + 关机链）
+4. 上传 smoke 日志 artifact：`riscv64-nightly-smoke-log-<date>-<sha>`
+5. 上传构建产物 artifact：`riscv64-nightly-<date>-<sha>`
+6. 创建 nightly tag 并发布 prerelease
+
+Nightly tag 规则 / Nightly tag format:
+- `nightly-master-riscv64-YYYYMMDD-<shortsha>`
+- 例如：`nightly-master-riscv64-20260219-abcdef123456`
+
+Nightly 产物命名 / Nightly asset naming:
+- `minix-cat-nightly-<YYYYMMDD>-<shortsha>-riscv64.img`
+- `minix-cat-nightly-<YYYYMMDD>-<shortsha>-riscv64.img.gz`
+- `minix-cat-nightly-<YYYYMMDD>-<shortsha>-riscv64.elf`
+- `minix-cat-nightly-<YYYYMMDD>-<shortsha>-riscv64-sysroot.tar.gz`
+- `SHA256SUMS.txt`
+
+说明 / Notes:
+- Nightly 会把上述 5 件产物同时放入：
+  1) Actions workflow artifacts；2) GitHub Release（prerelease）资产。
+- 若出现“某次 nightly 没有产物”，先确认该 run 是否被取消；取消的 run 可能显示
+  `0 artifact`，不代表成功 run 未上传。
 
 ## 性能优化 / Performance Optimization
 
@@ -658,22 +863,23 @@ cd minix/tests/riscv64
    New issues: record symptoms, repro steps, logs, files/lines, and impact in `issue.md`
 2. 修复后：同步更新 `RISC64-STATUS.md` 的状态与风险评估  
    After fixes: update status and risk assessment in `RISC64-STATUS.md`
-3. 关键变更：补充到 `docs/RISCV64_PORTING_GUIDE.md` 的移植步骤与验证记录  
-   Key changes: add porting steps and verification notes to `docs/RISCV64_PORTING_GUIDE.md`
+3. 关键变更：补充到 `docs/RISCV64_PORTING_GUIDE.md` 的移植步骤与验证记录；VirtIO 相关变更同步到 `docs/RISCV64_VIRTIO_DRIVER_GUIDE.md`  
+   Key changes: add porting steps and verification notes to `docs/RISCV64_PORTING_GUIDE.md`; sync VirtIO-specific updates to `docs/RISCV64_VIRTIO_DRIVER_GUIDE.md`
 
 ## 参考资料 / References
 
 - [RISC-V 规范](https://riscv.org/technical/specifications/)
 - [SBI 规范](https://github.com/riscv-non-isa/riscv-sbi-doc)
 - [QEMU RISC-V 支持](https://www.qemu.org/docs/master/system/riscv/riscv-virt.html)
-- [MINIX 3 文档](http://www.minix3.org/docs/)
+- [MINIX 文档](http://www.minix3.org/docs/)
+- [RISC-V VirtIO 驱动指南 / RISC-V VirtIO Driver Guide](docs/RISCV64_VIRTIO_DRIVER_GUIDE.md)
 
 ## 许可证 / License
 
-MINIX 3 遵循 BSD 许可证。详见源码中的 LICENSE 文件。  
-MINIX 3 is licensed under BSD. See LICENSE in the source tree.
+MINIX 遵循 BSD 许可证。详见源码中的 LICENSE 文件。  
+MINIX is licensed under BSD. See LICENSE in the source tree.
 
 ---
 
-**最后更新 / Last updated**：2026-02-17  
-**版本 / Version**：1.9
+**最后更新 / Last updated**：2026-02-19  
+**版本 / Version**：1.25

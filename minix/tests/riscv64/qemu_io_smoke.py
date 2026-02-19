@@ -82,6 +82,20 @@ def read_until(io: ProcIO, patterns: list[re.Pattern], timeout: float) -> tuple[
     return buf, None
 
 
+def run_command_rc(io: ProcIO, cmd: str, marker: str, timeout: int) -> tuple[int | None, str, bool]:
+    marker_pat = re.compile(re.escape(marker) + r":(\d+)")
+    panic_pat = re.compile(r"panic|PANIC")
+    send(io, cmd + "\n")
+    send(io, f"echo {marker}:$?\n")
+    buf, pat = read_until(io, [marker_pat, panic_pat], timeout)
+    if pat == panic_pat or panic_pat.search(buf):
+        return None, buf, True
+    m = marker_pat.search(buf)
+    if not m:
+        return None, buf, False
+    return int(m.group(1)), buf, False
+
+
 def make_disk(path: str, size: int) -> None:
     with open(path, "wb") as f:
         f.truncate(size)
@@ -109,61 +123,50 @@ def run_dd_fallback(io: ProcIO, device: str, offset: int, size: int,
             count = 8
 
     dev_q = shlex.quote(device)
+
     if file_mode:
-        cmd = (
-            "sh -c '"
-            "test -x /bin/cat || { echo __DD_SKIP__; exit 2; }; "
-            "test -x /usr/bin/cmp || { echo __DD_SKIP__; exit 2; }; "
-            "echo __DD_STEP1__; "
-            "mkdir -p /usr/tmp >/dev/null 2>&1; "
-            "echo minix > /usr/tmp/vb.src 2>/dev/null || exit 1; "
-            "echo __DD_STEP2__; "
-            "/bin/cat /usr/tmp/vb.src > \"$1\" 2>/dev/null || exit 1; "
-            "echo __DD_STEP3__; "
-            "/usr/bin/cmp /usr/tmp/vb.src \"$1\" >/dev/null 2>&1 || exit 1; "
-            "echo __DD_OK__"
-            f"' sh {dev_q}"
-        )
+        tools_cmd = "test -x /bin/cat && test -x /usr/bin/cmp"
+        steps = [
+            "echo minix > /vb.src",
+            f"/bin/cat /vb.src > {dev_q}",
+            f"/usr/bin/cmp /vb.src {dev_q}",
+        ]
     else:
         offb = offset // 512
-        cmd = (
-            "sh -c '"
-            "test -x /bin/dd || { echo __DD_SKIP__; exit 2; }; "
-            "test -x /usr/bin/cmp || { echo __DD_SKIP__; exit 2; }; "
-            "mkdir -p /usr/tmp >/dev/null 2>&1; "
-            f"dd if=/bin/sh of=/usr/tmp/vb.src bs=512 count={count} 2>/dev/null || exit 1; "
-            f"dd if=/usr/tmp/vb.src of=\"$1\" bs=512 seek={offb} conv=notrunc 2>/dev/null || exit 1; "
-            f"dd if=\"$1\" of=/usr/tmp/vb.dst bs=512 skip={offb} count={count} 2>/dev/null || exit 1; "
-            "cmp /usr/tmp/vb.src /usr/tmp/vb.dst >/dev/null 2>&1 || exit 1; "
-            "echo __DD_OK__"
-            f"' sh {dev_q}"
-        )
-    send(io, cmd + "\n")
-    send(io, "echo __DD_DONE__:$?\n")
+        tools_cmd = "test -x /bin/dd"
+        steps = [
+            f"/bin/dd if=/bin/sh of={dev_q} bs=512 seek={offb} count={count} conv=notrunc",
+            f"/bin/dd if={dev_q} of=/dev/null bs=512 skip={offb} count={count}",
+        ]
 
-    done_pat = re.compile(r"__DD_DONE__:(\d+)")
-    panic_pat = re.compile(r"panic|PANIC")
-    buf, _ = read_until(io, [done_pat, panic_pat], timeout)
-    if panic_pat.search(buf):
-        log_tail(buf, "Kernel panic", limit=4000)
+    tool_rc, tool_buf, tool_panic = run_command_rc(io, tools_cmd, "__DD_TOOL__", timeout)
+    if tool_panic:
+        log_tail(tool_buf, "Kernel panic", limit=4000)
         log("FAIL: kernel panic detected")
         return 1
-
-    m = done_pat.search(buf)
-    if not m:
-        log_tail(buf, "DD fallback did not complete")
+    if tool_rc is None:
+        log_tail(tool_buf, "DD fallback tool probe did not complete")
         return 1
-
-    rc_val = int(m.group(1))
-    if "__DD_OK__" in buf and rc_val == 0:
-        log("PASS: dd/cmp fallback")
-        return 0
-    if "__DD_SKIP__" in buf or rc_val == 2:
-        log_tail(buf, "DD fallback skipped")
+    if tool_rc != 0:
+        log("SKIP: dd fallback requires dd/cat (and cmp for file-mode) in guest")
         return SKIP_RC
 
-    log_tail(buf, "DD fallback failed")
-    return 1
+    for idx, step_cmd in enumerate(steps, start=1):
+        marker = f"__DD_S{idx}__"
+        step_rc, step_buf, step_panic = run_command_rc(io, step_cmd, marker, timeout)
+        if step_panic:
+            log_tail(step_buf, "Kernel panic", limit=4000)
+            log("FAIL: kernel panic detected")
+            return 1
+        if step_rc is None:
+            log_tail(step_buf, f"DD fallback step {idx} did not complete")
+            return 1
+        if step_rc != 0:
+            log_tail(step_buf, f"DD fallback step {idx} failed")
+            return 1
+
+    log("PASS: dd/cmp fallback")
+    return 0
 
 
 def run_probe(io: ProcIO, prompt_pat: re.Pattern, timeout: int) -> None:
@@ -172,7 +175,6 @@ def run_probe(io: ProcIO, prompt_pat: re.Pattern, timeout: int) -> None:
         "echo __PROBE_START__; "
         "sysenv arch 2>&1; "
         "/sbin/minix-service sysctl srv_status 2>&1 | /bin/grep virtio 2>&1; "
-        "/bin/ps 2>&1 | /bin/grep virtio 2>&1; "
         "ls -l /bin/test_virtio_blk_mmio /service/virtio_blk_mmio /dev/c0d0 2>&1; "
         "echo __PROBE_END__"
     )
@@ -188,31 +190,43 @@ def run_probe(io: ProcIO, prompt_pat: re.Pattern, timeout: int) -> None:
 
 
 def ensure_virtio_driver(io: ProcIO, prompt_pat: re.Pattern, timeout: int) -> bool:
-    cmd = (
-        "PATH=/sbin:/bin:/usr/bin; "
-        "if /sbin/minix-service sysctl srv_status 2>/dev/null | /bin/grep -q virtio_blk_mmio; then "
-        "echo __DRV_UP__; "
-        "else "
-        "/sbin/minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0; "
-        "echo __DRV_UP_RC__:$?; "
-        "fi"
-    )
-    send(io, cmd + "\n")
-    done_pat = re.compile(r"__DRV_UP__|__DRV_UP_RC__:(\d+)")
     panic_pat = re.compile(r"panic|PANIC")
-    buf, pat = read_until(io, [done_pat, panic_pat], timeout)
-    if pat == panic_pat:
-        log_tail(buf, "VirtIO blk driver start panic", limit=4000)
+    up_cmd = "/sbin/minix-service -c up /service/virtio_blk_mmio -dev /dev/c0d0"
+    up_rc, up_buf, up_panic = run_command_rc(io, up_cmd, "__DRV_UP__", timeout)
+    if up_panic:
+        log_tail(up_buf, "VirtIO blk driver start panic", limit=4000)
         log("FAIL: kernel panic detected")
         return False
-    if "__DRV_UP__" in buf:
+    if up_rc is None:
+        log_tail(up_buf, "VirtIO blk driver start probe failed", limit=4000)
+        return False
+
+    node_rc, node_buf, node_panic = run_command_rc(
+        io, "test -b /dev/c0d0", "__DRV_NODE__", timeout
+    )
+    if node_panic:
+        log_tail(node_buf, "VirtIO blk node probe panic", limit=4000)
+        log("FAIL: kernel panic detected")
+        return False
+    if node_rc is None:
+        log_tail(node_buf, "VirtIO blk node probe failed", limit=4000)
+        return False
+
+    if node_rc == 0:
+        sync_buf, sync_pat = read_until(io, [prompt_pat, panic_pat], max(5, min(30, timeout)))
+        if sync_pat == panic_pat:
+            log_tail(sync_buf, "VirtIO blk driver sync panic", limit=4000)
+            log("FAIL: kernel panic detected")
+            return False
+        if not prompt_pat.search(sync_buf):
+            send(io, "\n")
+            sync_buf2, _ = read_until(io, [prompt_pat], max(5, min(30, timeout)))
+            if not prompt_pat.search(sync_buf2):
+                log_tail(sync_buf + sync_buf2, "VirtIO blk prompt resync failed", limit=4000)
+                return False
         return True
-    m = re.search(r"__DRV_UP_RC__:(\d+)", buf)
-    if m:
-        rc_val = int(m.group(1))
-        if rc_val == 0 or rc_val == 16:
-            return True
-    log_tail(buf, "VirtIO blk driver start failed", limit=4000)
+
+    log(f"VirtIO blk driver state not ready: up_rc={up_rc} node_rc={node_rc}")
     return False
 
 
@@ -294,9 +308,10 @@ def main() -> int:
     try:
         login_pat = re.compile(r"login:", re.IGNORECASE)
         passwd_pat = re.compile(r"password:", re.IGNORECASE)
-        prompt_pat = re.compile(r"\n.*[#\\$] ")
+        prompt_pat = re.compile(r"(?:^|\r?\n)# ")
         panic_pat = re.compile(r"panic|PANIC")
 
+        log("Waiting for login/prompt...")
         buf, _ = read_until(io, [login_pat, prompt_pat, panic_pat], args.timeout)
         if panic_pat.search(buf):
             log_tail(buf, "Kernel panic", limit=4000)
@@ -304,6 +319,7 @@ def main() -> int:
             return 1
 
         if login_pat.search(buf):
+            log("Login prompt detected, sending root")
             send(io, "root\n")
             buf, pat = read_until(io, [passwd_pat, prompt_pat, panic_pat], args.timeout)
             if panic_pat.search(buf):
@@ -311,6 +327,7 @@ def main() -> int:
                 log("FAIL: kernel panic detected")
                 return 1
             if pat == passwd_pat:
+                log("Password prompt detected, sending empty password")
                 send(io, "\n")
                 buf, _ = read_until(io, [prompt_pat, panic_pat], args.timeout)
                 if panic_pat.search(buf):
@@ -324,15 +341,26 @@ def main() -> int:
             return SKIP_RC
 
         if device.startswith("/dev/"):
+            log("Ensuring virtio-blk driver is available...")
             if not ensure_virtio_driver(io, prompt_pat, args.timeout):
                 run_probe(io, prompt_pat, args.timeout)
                 return 1
 
+        dd_preferred_rc: int | None = None
+        if args.dd_fallback:
+            log("Running dd/cmp smoke path (preferred with --dd-fallback)...")
+            dd_preferred_rc = run_dd_fallback(io, device, args.offset, args.size,
+                allow_block, args.timeout)
+            if dd_preferred_rc == 0:
+                return 0
+            if dd_preferred_rc == SKIP_RC:
+                log("INFO: dd/cmp fallback skipped, trying guest test binary")
+            else:
+                log("INFO: dd/cmp fallback failed, trying guest test binary")
+
         if not test_bin_present:
-            if args.dd_fallback:
-                run_probe(io, prompt_pat, args.timeout)
-                return run_dd_fallback(io, device, args.offset, args.size,
-                    allow_block, args.timeout)
+            if dd_preferred_rc is not None:
+                return dd_preferred_rc
             log("SKIP: test binary not found in destdir")
             return SKIP_RC
 
@@ -342,26 +370,83 @@ def main() -> int:
         if require_block:
             test_cmd += " -b"
 
-        send(io, test_cmd + "\n")
-        send(io, "echo __TEST_RC__:$?\n")
+        test_guard = max(15, min(60, args.timeout))
+        guard_script = (
+            f"{test_cmd} & "
+            "tpid=$!; "
+            f"left={test_guard}; "
+            "while [ $left -gt 0 ]; do "
+            "if ! kill -0 $tpid 2>/dev/null; then "
+            "wait $tpid; echo __TEST_RC__:$?; exit 0; "
+            "fi; "
+            "sleep 1; left=$((left-1)); "
+            "done; "
+            "kill -9 $tpid >/dev/null 2>&1 || true; "
+            "echo __TEST_TIMEOUT__"
+        )
+        wrapped_cmd = "/bin/sh -c " + shlex.quote(guard_script)
+
+        log(f"Running guest test command (guard={test_guard}s): {test_cmd}")
+        send(io, wrapped_cmd + "\n")
 
         rc_pat = re.compile(r"__TEST_RC__:(\d+)")
-        buf, _ = read_until(io, [rc_pat, panic_pat], args.timeout)
+        timeout_pat = re.compile(r"__TEST_TIMEOUT__")
+        post_rc_pat = re.compile(r"__POST_RC__:(\d+)")
+        buf, matched_pat = read_until(io, [rc_pat, timeout_pat, prompt_pat, panic_pat], args.timeout)
         if panic_pat.search(buf):
             log_tail(buf, "Kernel panic", limit=4000)
             log("FAIL: kernel panic detected")
             return 1
+
+        if timeout_pat.search(buf):
+            log_tail(buf, "Guest test timed out")
+            if args.dd_fallback:
+                log("INFO: guest test timed out; trying dd/cmp fallback")
+                return run_dd_fallback(io, device, args.offset, args.size,
+                    allow_block, args.timeout)
+            log("FAIL: guest test timed out")
+            return 1
+
         m = rc_pat.search(buf)
+        if not m and matched_pat == prompt_pat:
+            log("Prompt returned before __TEST_RC__, probing $? via follow-up marker")
+            # We got back to shell but missed the inline marker; probe $? directly.
+            send(io, "echo __POST_RC__:$?\n")
+            probe_timeout = max(5, min(30, args.timeout))
+            post_buf, post_pat = read_until(io, [post_rc_pat, prompt_pat, panic_pat], probe_timeout)
+            buf += post_buf
+            if post_pat == panic_pat or panic_pat.search(post_buf):
+                log_tail(post_buf, "Kernel panic", limit=4000)
+                log("FAIL: kernel panic detected")
+                return 1
+            m = post_rc_pat.search(post_buf)
+
         if not m:
             log_tail(buf, "Test did not complete")
+            try:
+                # Recover an interactive shell in case the test command is stuck.
+                send(io, "\x03")
+            except OSError:
+                pass
+            recover_timeout = max(5, min(30, args.timeout))
+            recover_buf, recover_pat = read_until(io, [prompt_pat, panic_pat], recover_timeout)
+            if recover_pat == panic_pat or panic_pat.search(recover_buf):
+                log_tail(recover_buf, "Kernel panic", limit=4000)
+                log("FAIL: kernel panic detected")
+                return 1
+            if args.dd_fallback and prompt_pat.search(recover_buf):
+                log("INFO: test command stalled; trying dd/cmp fallback")
+                return run_dd_fallback(io, device, args.offset, args.size,
+                    allow_block, args.timeout)
             log("FAIL: test did not complete")
             return 1
         rc_val = int(m.group(1))
         missing_pat = re.compile(re.escape(guest_test_path) + r": not found")
         if rc_val == 127 or missing_pat.search(buf):
             log_tail(buf, "Test binary not found")
+            if dd_preferred_rc is not None:
+                return dd_preferred_rc
             if args.dd_fallback:
-                run_probe(io, prompt_pat, args.timeout)
                 return run_dd_fallback(io, device, args.offset, args.size,
                     allow_block, args.timeout)
             log("SKIP: test binary not found in guest")

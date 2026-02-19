@@ -281,6 +281,18 @@ copy_drivers() {
         log_info "  Copied driver: virtio_blk_mmio"
     fi
 
+    # VirtIO network driver (MMIO)
+    if [ -f "$DRIVERS_DIR/net/virtio_net_mmio/virtio_net_mmio" ]; then
+        cp "$DRIVERS_DIR/net/virtio_net_mmio/virtio_net_mmio" "$ISO_ROOT/service/"
+        log_info "  Copied driver: virtio_net_mmio"
+    fi
+
+    # lwIP network stack
+    if [ -f "$DESTDIR/minix/net/lwip/lwip" ]; then
+        cp "$DESTDIR/minix/net/lwip/lwip" "$ISO_ROOT/service/"
+        log_info "  Copied service: lwip"
+    fi
+
     # NS16550 UART driver
     if [ -f "$DRIVERS_DIR/tty/ns16550/ns16550" ]; then
         cp "$DRIVERS_DIR/tty/ns16550/ns16550" "$ISO_ROOT/service/"

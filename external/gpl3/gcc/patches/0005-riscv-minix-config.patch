@@ -1,0 +1,18 @@
+--- dist.orig/gcc/config.gcc
++++ dist/gcc/config.gcc
+@@ -2404,6 +2404,15 @@
+ 	gnu_ld=yes
+ 	gas=yes
+ 	gcc_cv_initfini_array=yes
++	;;
++riscv*-*-minix*)				# MINIX RISC-V
++	tm_file="elfos.h ${tm_file} netbsd-stdint.h riscv/elf.h minix-spec.h minix.h"
++	tmake_file="${tmake_file} riscv/t-elf t-minix"
++	extra_options="${extra_options} netbsd.opt netbsd-elf.opt"
++	gnu_ld=yes
++	gas=yes
++	gcc_cv_initfini_array=yes
++	default_use_cxa_atexit=yes
+ 	;;
+ rs6000-ibm-aix4.[3456789]* | powerpc-ibm-aix4.[3456789]*)
+ 	tm_file="rs6000/biarch64.h ${tm_file} rs6000/aix.h rs6000/aix43.h rs6000/xcoff.h rs6000/aix-stdint.h"

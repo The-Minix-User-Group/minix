@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 
-/* Device tree blob pointer (set by boot code) */
+/* Device tree blob pointer (set by boot code). */
 extern u64_t _boot_fdt;
 
 /* Memory layout */
@@ -253,7 +253,7 @@ static void parse_cpus(void *fdt)
  */
 void bsp_early_init(void)
 {
-    void *fdt = (void *)_boot_fdt;
+    void *fdt = (void *)(uintptr_t)_boot_fdt;
 
     /* Initialize SBI console for early output */
     direct_print("MINIX/riscv64 BSP early init\n");

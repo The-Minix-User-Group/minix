@@ -1,12 +1,7 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
-/* Minix release and version numbers. */
-#define OS_NAME "Minix Cat"
-#define OS_RELEASE "4.0.0"	/* x.m.p */
-#define OS_REV 400000000	/* see NetBSD sys/param.h: xmm00pp00 */
-#define OS_CONFIG "GENERIC"
-#define OS_VERSION OS_NAME " " OS_RELEASE " (" OS_CONFIG ")"
+#include <minix/version.h>
 
 /* This file sets configuration parameters for the MINIX kernel, FS, and PM.
  * It is divided up into two main sections.  The first section contains

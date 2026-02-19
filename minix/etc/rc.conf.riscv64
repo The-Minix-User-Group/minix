@@ -17,8 +17,10 @@ rc_debug="NO"
 
 # Network configuration (if VirtIO net is available)
 # hostname="minix-riscv64"
+# ifconfig_eth0="dhcp"                  # dhcpcd dual-stack (IPv4 + IPv6)
 # defaultroute="10.0.2.2"
 # ifconfig_eth0="inet 10.0.2.15 netmask 255.255.255.0"
+# defaultroute6="fe80::2%eth0"          # example static IPv6 default route
 
 # Services to start
 sshd="NO"               # Enable if network is configured

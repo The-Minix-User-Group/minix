@@ -29,11 +29,12 @@ virtio_blk_mmio                     # Block device
 
 # Phase 4: Optional Drivers
 # Uncomment as needed
-# virtio_net_mmio                   # Network
+virtio_net_mmio                     # Network
 # virtio_rng_mmio                   # RNG
 
 # Phase 5: System Services
 is                                  # Information server
+lwip                                # TCP/IP stack
 
 # Phase 6: Init
 # Starts the user-space init process

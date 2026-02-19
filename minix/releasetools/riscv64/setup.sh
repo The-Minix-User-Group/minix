@@ -119,10 +119,10 @@ configure_network() {
         read use_dhcp
 
         if [ "$use_dhcp" != "n" ] && [ "$use_dhcp" != "N" ]; then
-            # DHCP configuration
+            # DHCP configuration (dual stack: IPv4 + IPv6 via dhcpcd)
             cat > /etc/rc.conf.d/network << EOF
 # Network configuration
-ifconfig_eth0="DHCP"
+ifconfig_eth0="dhcp"
 EOF
         else
             echo "Enter IP address: "
@@ -136,7 +136,7 @@ EOF
             cat > /etc/rc.conf.d/network << EOF
 # Network configuration
 ifconfig_eth0="inet $ip_addr netmask $netmask"
-defaultrouter="$gateway"
+defaultroute="$gateway"
 EOF
         fi
 

@@ -39,7 +39,20 @@
 #define R_RISCV_TLS_TPREL32	10
 #define R_RISCV_TLS_TPREL64	11
 
+/*
+ * Keep ld.elf_so relocation source compatible with targets that use
+ * ADDR32/ADDR64-style naming and R_TYPESZ(name) dispatch.
+ */
+#define R_RISCV_ADDR32		R_RISCV_32
+#define R_RISCV_ADDR64		R_RISCV_64
+
 #define R_TYPE(name)		R_RISCV_ ## name
 #define R_TLS_TYPE(name)	R_RISCV_ ## name
+
+#if ARCH_ELFSIZE == 64
+#define R_TYPESZ(name)		R_TYPE(name ## 64)
+#else
+#define R_TYPESZ(name)		R_TYPE(name ## 32)
+#endif
 
 #endif /* _RISCV_ELF_MACHDEP_H_ */

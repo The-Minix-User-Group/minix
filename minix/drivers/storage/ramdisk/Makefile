@@ -117,6 +117,22 @@ PROGRAMS+=		dd
 dir.dd:=	bin/dd
 PROGRAMS+=		cmp
 dir.cmp:=	usr.bin/cmp
+PROGRAMS+=		shutdown
+dir.shutdown:=	sbin/shutdown
+PROGRAMS+=		reboot
+dir.reboot:=	sbin/reboot
+PROGRAMS+=		ifconfig
+dir.ifconfig:=	sbin/ifconfig
+PROGRAMS+=		route
+dir.route:=	sbin/route
+PROGRAMS+=		ping
+dir.ping:=	sbin/ping
+PROGRAMS+=		ping6
+dir.ping6:=	sbin/ping6
+PROGRAMS+=		virtio_net_mmio
+dir.virtio_net_mmio:=	minix/drivers/net/virtio_net_mmio
+PROGRAMS+=		lwip
+dir.lwip:=	minix/net/lwip
 PROGRAMS+=		virtio_blk_mmio
 dir.virtio_blk_mmio:= minix/drivers/storage/virtio_blk_mmio
 .if ${RAMDISK_TESTS} == "1"
@@ -233,6 +249,7 @@ ${prog}: ${PROGROOT}/${dir.${prog}}${PROGSUFFIX}/${prog}
 realall image:	proto.gen ${ETC:C/^/etc\//} ${EXTRA} \
 		etc/master.passwd etc/pwd.db etc/spwd.db etc/passwd etc/group
 	${_MKMSG_CREATE} "Generating ramdisk image"
+	rm -f image
 	${TOOL_MKFSMFS} image proto.gen || { rm -f image; false; }
 
 etc/pwd.db etc/spwd.db etc/passwd: etc/master.passwd
@@ -264,8 +281,8 @@ proto.gen: ${PROTO} ${PROTO_FILES} proto.dev ${PROGRAMS}
 	${STRIP} ${PROGRAMS}
 	# We are using the c preprocessor to generate proto.gen
 	# used in the mkfs tool.
-	${TOOL_CAT} ${PROTO} | ${CC} \
+	${TOOL_CAT} ${PROTO} | ${CPP} \
 	    	${RAMDISK_DEFINES} \
-		-E - | grep -v "^$$" | grep -v "#" >${.TARGET}
+		- | grep -v "^$$" | grep -v "#" >${.TARGET}
 
 .include <minix.service.mk>

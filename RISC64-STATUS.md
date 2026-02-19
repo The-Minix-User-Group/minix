@@ -1,7 +1,7 @@
 # MINIX RISC-V 64-bit Port Status / MINIX RISC-V 64 位移植状态
 
-**Date / 日期**: 2026-02-17  
-**Version / 版本**: 1.9
+**Date / 日期**: 2026-02-18  
+**Version / 版本**: 1.13
 **Status / 状态**: Phase 2 stabilization — boots to shell; P0 closed and key P1 hygiene fixes landed
 **Progress / 进度**: ~80% (boot/userland path stabilized; runtime-aware gate hardened; core follow-ups remain)
 
@@ -21,6 +21,11 @@
 - 本轮已确认并修复 RV64 用户态 `memset` 递归导致的栈顶 SIGSEGV（见 `issue.md` A3 进展）。
 - 含盘 smoke 复测通过：`virtio_blk_mmio` 报告 capacity/initialized，未再出现
   `device not found` / `Request 0x700 to RS failed` / `couldn't start virtio_blk_mmio`。
+- `minix/releasetools/riscv64/mkdisk.sh` 已重构为非 root 可产出 U-Boot 自动探测镜像
+  （含 `boot.scr.uimg` + `/boot/kernel.bin` + 模块/`modinfo` 载荷）。
+- A4 已闭环：U-Boot 纯磁盘路径在正确 S-mode 链路
+  （`-bios default -kernel /usr/lib/u-boot/qemu-riscv64_smode/uboot.elf`）下
+  可进入 MINIX shell（见 `issue.md` A4 归档）。
 - 已完成 source-driven 复现门禁全链路：`repro_build_gate.sh` 在同一 `obj.intrgcc`
   跑通 `tools -> distribution -> smoke`（无需手工补丁/手工拷贝产物）。
 - 多轮自动门禁通过：`minix/tests/riscv64/multi_smoke_gate.sh --rounds 2 --timeout 90`
@@ -36,6 +41,17 @@
 - `repro_build_gate.sh` 的 relax 行为探针改为
   `ld -r --whole-archive ... --no-whole-archive`，避免空对象误通过。
 - #24 已缓解：in-tree binutils 增加 `R_RISCV_RELAX` 兼容补丁，`ld` 不再因 `0x33` 中断链接。
+- 本轮已修复 RV64 FDT 启动指针命名空间错配（`__k_unpaged__boot_fdt` 与 `_boot_fdt`）；
+  内存探测恢复到完整 256MB，日志显示 `Memory: 0x80000000 - 0x90000000`，
+  `neofetch` 的 `Mem(raw)` 总页数提升到 `61767`。
+- 已完成一次完整 `riscv64` 套件回归：`run_tests.sh all` 结果为
+  `Passed=21, Failed=0, Skipped=1`，其中 `multi_smoke_gate` 为
+  `4/4` 通过，runtime probe `4/4` 通过。
+- 本轮网络权限链路修复：`service lwip` IPC 白名单补充 `pm` 后，
+  raw socket 鉴权恢复，`ping/ping6` 不再因 `Permission denied` 失败
+  （详见 `issue.md` `#34`）。
+- 新发现待修：`ping6 fe80::...%vio0` 在用户态出现 `SIGSEGV (bad addr 0x0)`，
+  属于 scoped link-local 诊断路径崩溃（见 `issue.md` `#35`）。
 - 仍有待闭环风险：`procfs` safecopy 回退噪声（#17）。
 
 **English**
@@ -55,6 +71,13 @@
   (see `issue.md` A3 update).
 - With-disk smoke now passes: `virtio_blk_mmio` reports capacity/initialized and no longer logs
   `device not found`, `Request 0x700 to RS failed`, or `couldn't start virtio_blk_mmio`.
+- `minix/releasetools/riscv64/mkdisk.sh` has been reworked to create a non-root
+  U-Boot autodiscovery image (`boot.scr.uimg` + `/boot/kernel.bin` +
+  module/modinfo payloads).
+- A4 is now closed: the disk-only U-Boot path reaches MINIX shell when using the
+  correct S-mode chain
+  (`-bios default -kernel /usr/lib/u-boot/qemu-riscv64_smode/uboot.elf`);
+  see archived A4 notes in `issue.md`.
 - A source-driven reproducibility gate now passes end-to-end:
   `repro_build_gate.sh` completes `tools -> distribution -> smoke`
   on the same `obj.intrgcc` without manual patching/artifact injection.
@@ -72,6 +95,18 @@
   `ld -r --whole-archive ... --no-whole-archive` to exercise real archive-member paths.
 - #24 is now mitigated: in-tree binutils has a compatibility patch for `R_RISCV_RELAX`,
   and `ld` no longer aborts on relocation `0x33`.
+- This cycle fixes RV64 FDT boot-pointer namespace mismatch
+  (`__k_unpaged__boot_fdt` vs `_boot_fdt`); memory detection returns to the
+  full 256MB range (`Memory: 0x80000000 - 0x90000000`), and `neofetch`
+  `Mem(raw)` total pages rise to `61767`.
+- A full `riscv64` regression has been completed:
+  `run_tests.sh all` reports `Passed=21, Failed=0, Skipped=1`,
+  with `multi_smoke_gate` `4/4` pass and runtime probe `4/4` pass.
+- This cycle fixes raw-socket credential lookup permissioning for networking:
+  `service lwip` now allows IPC to `pm`, removing false `ping/ping6`
+  `Permission denied` failures (`issue.md` `#34`).
+- New open follow-up: `ping6 fe80::...%vio0` can still crash in userspace
+  (`SIGSEGV`, `bad addr 0x0`) on the scoped link-local path (`issue.md` `#35`).
 - Remaining open risk: procfs safecopy retry noise (#17).
 
 ## Build Status / 构建状态
@@ -114,6 +149,9 @@
   但命令返回保持成功（`RC=0`）。
 - 含盘 smoke（`/tmp/qemu-smoke-disk.log`）已验证 `virtio_blk_mmio` 初始化成功；
   `-i` 轮廓下未复现 `device not found` / `Request 0x700 ... not alive` 告警。
+- U-Boot 纯磁盘路径已可自动发现并执行 `/boot.scr.uimg`，并在
+  `-bios default -kernel /usr/lib/u-boot/qemu-riscv64_smode/uboot.elf`
+  链路下进入 shell（`/tmp/qemu-uboot-diskonly-new-smode.log`）。
 - 多轮日志门禁输出位于 `/tmp/minix-smoke-gate-20260216-221610/` 与
   `/tmp/minix-smoke-gate-20260216-224157/`，含每轮 `.log` 与 `.triage.txt`，
   可用于回归比较与首错审计。
@@ -129,6 +167,14 @@
   `multi_smoke_gate.sh --rounds 1 --timeout 70 --runtime-timeout 70 --runtime-cmd-timeout 35`
   在 `/tmp/minix-smoke-gate-20260217-070246/` 完成
   `Passed: 2, Failed: 0, Runtime passed: 2, Runtime failed: 0`。
+- 最新全量回归（`/tmp/minix-full-riscv64-tests.log`）通过：
+  `Passed: 21, Failed: 0, Skipped: 1`；
+  其中门禁日志在 `/tmp/minix-smoke-gate-20260217-165805/`，结果为
+  `Passed: 4, Failed: 0, Runtime passed: 4, Runtime failed: 0`。
+- FDT 启动指针桥接修复后，启动日志恢复完整内存窗口
+  `Memory: 0x80000000 - 0x90000000`，`neofetch` 显示
+  `Mem(raw): 4096 61767 52676 48338 1185`
+  （见 `/tmp/qemu-memfix.log` 与 `/tmp/qemu-neofetch-memfix.log`）。
 - `neofetch` 默认服务探测模式已从 `off` 切换为 `auto`，优先读取 `/proc/service`；
   `NEOFETCH_SERVICE_PROBE=ps` 仍可显式启用旧 `ps` 探测路径。
 
@@ -143,6 +189,10 @@
   procfs/safecopy fallback noise while command return codes remain successful (`RC=0`).
 - The with-disk smoke run (`/tmp/qemu-smoke-disk.log`) confirms `virtio_blk_mmio`
   initialization and does not reproduce the previous startup warning signature.
+- U-Boot disk-only boot now auto-discovers and executes `/boot.scr.uimg`, and
+  reaches shell when launched via the S-mode chain
+  (`-bios default -kernel /usr/lib/u-boot/qemu-riscv64_smode/uboot.elf`);
+  see `/tmp/qemu-uboot-diskonly-new-smode.log`.
 - Multi-run gate artifacts are under `/tmp/minix-smoke-gate-20260216-221610/` and
   `/tmp/minix-smoke-gate-20260216-224157/` with per-round `.log` and `.triage.txt`
   outputs for regression auditing.
@@ -159,6 +209,14 @@
   `multi_smoke_gate.sh --rounds 1 --timeout 70 --runtime-timeout 70 --runtime-cmd-timeout 35`
   passed under `/tmp/minix-smoke-gate-20260217-070246/` with
   `Passed: 2, Failed: 0, Runtime passed: 2, Runtime failed: 0`.
+- Latest full regression (`/tmp/minix-full-riscv64-tests.log`) passes with
+  `Passed: 21, Failed: 0, Skipped: 1`;
+  the embedded gate run under `/tmp/minix-smoke-gate-20260217-165805/` reports
+  `Passed: 4, Failed: 0, Runtime passed: 4, Runtime failed: 0`.
+- After the FDT boot-pointer bridge fix, boot logs restore the full memory span
+  `Memory: 0x80000000 - 0x90000000`, and `neofetch` reports
+  `Mem(raw): 4096 61767 52676 48338 1185`
+  (see `/tmp/qemu-memfix.log` and `/tmp/qemu-neofetch-memfix.log`).
 - `neofetch` default service probe switched from `off` to `auto`, preferring
   `/proc/service`; the old `ps` path remains available via
   `NEOFETCH_SERVICE_PROBE=ps`.
@@ -171,6 +229,7 @@
 **Major / 重要**
 - #16: VFS service endpoint pre-resync path still needs stricter generation-safe validation.
 - #17: recoverable safecopy fallback noise on `/proc/*` path remains.
+- #35: `ping6 fe80::...%vio0` crashes in userspace (`SIGSEGV`) on scoped link-local path.
 - #23: RV64 `vm_memset` recovery plumbing is implemented and smoke-validated; targeted
   fault-injection validation is still required for full closure.
 

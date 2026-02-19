@@ -2,9 +2,9 @@
            BSDSRCDIR = '/usr/src'
              BUILDID = (undefined)
            BUILDINFO = (undefined)
-           BUILDSEED = 'MINIX-3.4.0'
+           BUILDSEED = 'MINIX-4.0.0'
              DESTDIR = '/home/donz/minix/obj.intrgcc/destdir.evbriscv64'
-          DISTRIBVER = '3.4.0'
+          DISTRIBVER = '4.0.0'
   EXTERNAL_TOOLCHAIN = (undefined)
             HAVE_GCC = (undefined)
             HAVE_GDB = '79'

@@ -57,6 +57,8 @@
 
 #include "lwip.h"
 #include "ethif.h"
+#include "ifaddr.h"
+#include "route.h"
 
 #include "lwip/etharp.h"
 #include "lwip/ethip6.h"
@@ -959,6 +961,60 @@ ethif_set_status(struct ethif * ethif, uint32_t link, uint32_t media)
 	ifdev_update_link(&ethif->ethif_ifdev, iflink);
 }
 
+#if defined(__riscv) || defined(__riscv_xlen)
+/*
+ * Temporary bootstrapping for the RISC-V QEMU bring-up path: for virtio-net
+ * interfaces, preconfigure a static IPv4 address and default route so that the
+ * stack is usable without depending on ifconfig(8) in the early ramdisk.
+ */
+static void
+ethif_bootstrap_riscv_qemu(struct ethif * ethif)
+{
+	struct ifdev *ifdev;
+	struct sockaddr_in addr, mask;
+	ip_addr_t dst_addr, gw_addr;
+	int r;
+
+	if (strncmp(ethif_get_name(ethif), "vio", 3))
+		return;
+
+	ifdev = &ethif->ethif_ifdev;
+
+	r = ifdev_set_ifflags(ifdev, ifdev_get_ifflags(ifdev) | IFF_UP);
+	if (r != OK)
+		printf("LWIP: unable to bring %s up (%d)\n",
+		    ethif_get_name(ethif), r);
+
+	if (!ifdev->ifdev_v4set) {
+		memset(&addr, 0, sizeof(addr));
+		addr.sin_len = sizeof(addr);
+		addr.sin_family = AF_INET;
+		addr.sin_addr.s_addr = PP_HTONL(0x0a00020fUL); /* 10.0.2.15 */
+
+		memset(&mask, 0, sizeof(mask));
+		mask.sin_len = sizeof(mask);
+		mask.sin_family = AF_INET;
+		mask.sin_addr.s_addr = PP_HTONL(0xffffff00UL); /* /24 */
+
+		r = ifaddr_v4_add(ifdev, &addr, &mask, NULL, NULL, 0);
+		if (r != OK && r != EEXIST)
+			printf("LWIP: unable to set IPv4 address on %s (%d)\n",
+			    ethif_get_name(ethif), r);
+	}
+
+	ip_addr_set_ip4_u32(&dst_addr, PP_HTONL(INADDR_ANY));
+	ip_addr_set_ip4_u32(&gw_addr, PP_HTONL(0x0a000202UL)); /* 10.0.2.2 */
+
+	if (route_find(&dst_addr, 0, 0 /*is_host*/) == NULL) {
+		r = route_add(&dst_addr, 0, &gw_addr, ifdev,
+		    RTF_UP | RTF_GATEWAY | RTF_STATIC, NULL);
+		if (r != OK && r != EEXIST)
+			printf("LWIP: unable to add default route on %s (%d)\n",
+			    ethif_get_name(ethif), r);
+	}
+}
+#endif
+
 /*
  * The ndev layer reports that a previously added or disabled network device
  * driver has been (re)enabled.  Start by initializing the driver.  Return TRUE
@@ -1052,6 +1108,10 @@ ethif_enable(struct ethif * ethif, const char * name,
 
 	ethif->ethif_flags &= ~ETHIFF_DISABLED;
 	ethif->ethif_flags |= ETHIFF_FIRST_CONF;
+
+#if defined(__riscv) || defined(__riscv_xlen)
+	ethif_bootstrap_riscv_qemu(ethif);
+#endif
 
 	return TRUE;
 }

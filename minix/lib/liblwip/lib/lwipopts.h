@@ -49,13 +49,14 @@
 #define MEMPOOL_BUFSIZE                 512
 
 /*
- * The following value should be sizeof(void *), but lwIP's own #if-based
- * sanity checks make that impossible.  It is crucial that the value is set to
- * exactly the value of sizeof(void *) though: a value that is too small will
- * cause problems on alignment-enforcing platforms, and a value that is too
- * large will cause lwIP to fail on an assertion.  TODO: 64-bit support.
+ * This value must match sizeof(void *).  If the value is too small, alignment
+ * faults may occur; if too large, lwIP assertions may fire.
  */
+#if __SIZEOF_POINTER__ == 8
+#define MEM_ALIGNMENT                   8
+#else
 #define MEM_ALIGNMENT                   4
+#endif
 
 /*
  * The reason that we use lwIP's pools for its own objects, is that we actually

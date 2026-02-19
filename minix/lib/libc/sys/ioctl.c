@@ -308,7 +308,8 @@ ioctl_to_fcntl(int fd, unsigned long request, void * data)
 int     ioctl(int fd, unsigned long request, ...)
 {
   minix_i2c_ioctl_exec_t i2c;
-  int r, request_save;
+  int r;
+  unsigned long request_save;
   message m;
   vir_bytes addr;
   void *data;
