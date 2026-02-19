@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: riscv64-nightly-${{ github.ref }}
@@ -95,6 +95,7 @@ jobs:
           nightly_stamp="$(date -u +%Y%m%d)"
           short_sha="$(git rev-parse --short=12 "${GITHUB_SHA}")"
           base_name="minix-cat-nightly-${nightly_stamp}-${short_sha}-riscv64"
+          nightly_tag="nightly-riscv64-${nightly_stamp}-${short_sha}"
 
           image_name="${base_name}.img"
           image_path="/tmp/${image_name}"
@@ -108,6 +109,7 @@ jobs:
 
           echo "nightly_stamp=${nightly_stamp}" >>"${GITHUB_OUTPUT}"
           echo "short_sha=${short_sha}" >>"${GITHUB_OUTPUT}"
+          echo "nightly_tag=${nightly_tag}" >>"${GITHUB_OUTPUT}"
           echo "artifact_base=${base_name}" >>"${GITHUB_OUTPUT}"
           echo "image_name=${image_name}" >>"${GITHUB_OUTPUT}"
           echo "image_path=${image_path}" >>"${GITHUB_OUTPUT}"
@@ -371,6 +373,23 @@ jobs:
             ${{ steps.meta.outputs.sysroot_path }}
             ${{ steps.meta.outputs.sums_path }}
 
+      - name: Create nightly tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.meta.outputs.nightly_tag }}"
+
+          if git ls-remote --tags origin "refs/tags/${tag}" | grep -q .; then
+            echo "Nightly tag already exists: ${tag} (skip)"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${tag}" -m "MINIX riscv64 nightly ${tag}"
+          git push origin "refs/tags/${tag}"
+          echo "Created nightly tag: ${tag}"
+
       - name: Write nightly summary
         if: always()
         shell: bash
@@ -380,6 +399,7 @@ jobs:
             echo ""
             echo "- Date (UTC): ${{ steps.meta.outputs.nightly_stamp }}"
             echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Nightly tag: \`${{ steps.meta.outputs.nightly_tag }}\`"
             echo "- Artifact base: \`${{ steps.meta.outputs.artifact_base }}\`"
             echo "- Image: \`${{ steps.meta.outputs.image_name }}\`"
             echo "- Compressed image: \`${{ steps.meta.outputs.image_gz_name }}\`"
