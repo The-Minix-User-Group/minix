@@ -1,7 +1,7 @@
 # RISC-V MINIX Kernel Build Log / RISC-V MINIX 内核构建日志
 
-**Last updated / 最后更新**: 2026-02-18
-**Version / 版本**: 1.24
+**Last updated / 最后更新**: 2026-02-19
+**Version / 版本**: 1.25
 **Purpose / 用途**: Append-only record of build commands and outcomes. / 记录构建命令与结果（追加式）。
 
 **Baseline note / 基线说明**: active build/run baseline is `obj.intrgcc`; any
@@ -1211,6 +1211,69 @@ Dual-VM link-local check / 双 VM 链路本地复测:
 **Evidence / 证据**:
 - `.github/workflows/release-riscv64.yml`
 - `README-RISCV64.md`
+
+### Entry 35 — Add Release QEMU Interactive Gate (neofetch + shutdown) (2026-02-19) / 发布流水线增加 QEMU 交互门禁（neofetch + 关机链）
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Profile / 轮廓**: `obj.intrgcc`
+
+**Goal / 目标**:
+- Require a real boot-and-interact check before publishing release assets.
+- 在发布前强制执行“可启动 + 可交互 + 可关机”的最小可用验证。
+
+**Change / 改动**:
+1. Updated `/.github/workflows/release-riscv64.yml`:
+   - Added `QEMU interactive smoke test (neofetch + shutdown chain)` step
+     after artifact packaging and before release publish.
+2. Smoke script behavior:
+   - Boot image via `qemu-system-riscv64` + S-mode U-Boot chain.
+   - Wait for `#` prompt.
+   - Run `neofetch`, assert `Donz Fetch` and `OS: Minix Cat ...`.
+   - Run shutdown fallback chain:
+     `/sbin/shutdown -p now || /sbin/halt -p || /sbin/poweroff || /sbin/reboot -p || /sbin/reboot`.
+3. Added `Upload QEMU smoke log` with `if: always()`:
+   - log path: `/tmp/qemu-neofetch-smoke.log`
+   - artifact name format:
+     `riscv64-qemu-smoke-log-<tag>-<shortsha>`
+
+**Validation / 验证**:
+- Tag-triggered release flow proceeds only when the interactive gate passes.
+- Smoke log artifact is kept for both pass/fail runs to support triage.
+
+**Evidence / 证据**:
+- `.github/workflows/release-riscv64.yml`
+- `README-RISCV64.md`
+
+### Entry 36 — Nightly Tag Format Finalization + Publish 5 Assets to Release (2026-02-19) / nightly tag 规则定稿 + 5 件产物发布到 Release
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Profile / 轮廓**: `obj.intrgcc`
+
+**Goal / 目标**:
+- Make nightly output deterministic and externally consumable from GitHub Release.
+- 统一 nightly 命名、标签与资产分发路径，避免“只在 Actions artifact 可见”的歧义。
+
+**Change / 改动**:
+1. Added/updated nightly workflow:
+   - `/.github/workflows/nightly-riscv64.yml`
+2. Finalized nightly tag format:
+   - `nightly-master-riscv64-YYYYMMDD-<shortsha>`
+3. Finalized nightly artifact base naming:
+   - `minix-cat-nightly-YYYYMMDD-<shortsha>-riscv64`
+4. Nightly now publishes all five standard assets to two channels:
+   - Actions artifact upload
+   - GitHub Release (prerelease) via `softprops/action-gh-release@v2`
+5. Kept QEMU interactive gate and smoke-log upload in nightly lane
+   (same contract as release lane).
+
+**Validation / 验证**:
+- Successful nightly run `22165196780` uploaded 5 files (confirmed in step logs).
+- Canceled run `22165112159` shows `0 artifact`; treated as non-reference run.
+
+**Evidence / 证据**:
+- `.github/workflows/nightly-riscv64.yml`
+- `https://github.com/AvrovaDonz2026/minix/actions/runs/22165196780`
+- `https://github.com/AvrovaDonz2026/minix/actions/runs/22165112159`
 
 ### Entry 24 — Enforce Commit-Hash Artifact Naming in Release Pipeline (2026-02-18) / 发布流水线产物命名强制包含提交 hash
 **Workspace / 工作区**: `/home/donz/minix`  

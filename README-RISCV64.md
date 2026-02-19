@@ -9,18 +9,18 @@ targeting the QEMU virt platform.
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.24
-- 最后更新：2026-02-18
+- 版本：1.25
+- 最后更新：2026-02-19
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.24
-- Last updated: 2026-02-18
+- Version: 1.25
+- Last updated: 2026-02-19
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
 
-## 当前状态（截至 2026-02-18）/ Current Status (as of 2026-02-18)
+## 当前状态（截至 2026-02-19）/ Current Status (as of 2026-02-19)
 
 **中文**
 - 构建：可通过（需使用 workaround 组合，见本文构建命令与 `RISC64-STATUS.md`）
@@ -33,6 +33,11 @@ targeting the QEMU virt platform.
   `fe80::...%vio0` 验收均通过，不再复现用户态 `SIGSEGV (bad addr 0x0)`。
 - 公网连通性已在 QEMU user-net（slirp）模式验证通过：可从来宾 `ping 10.0.2.2`
   与 `ping 1.1.1.1`。
+- Release 流水线已加入 QEMU 交互式 gate（`neofetch` + 关机链），并上传
+  smoke 日志 artifact（失败也保留日志）。
+- Nightly 流水线已固定 tag 格式为
+  `nightly-master-riscv64-YYYYMMDD-<sha>`，并将 5 件产物同步上传到
+  workflow artifacts 与 GitHub Release（prerelease）。
 - 关键风险：`procfs` safecopy 回退噪声、SMP 未实现（详见 `issue.md`）
 - A4 已闭环：`mkdisk` 产物在 S-mode U-Boot 链路下可从磁盘镜像启动到 shell。
 - 进度估计：约 80%（启动链路与基础用户态已稳定，主要剩余问题集中在噪声收敛与稳定性增强）
@@ -56,6 +61,12 @@ targeting the QEMU virt platform.
   `SIGSEGV (bad addr 0x0)`.
 - Public reachability is validated in QEMU user-net (slirp): guest can
   `ping 10.0.2.2` and `ping 1.1.1.1`.
+- The release workflow now enforces an interactive QEMU gate
+  (`neofetch` + shutdown chain) and uploads a smoke log artifact
+  even on failure.
+- The nightly workflow now uses the fixed tag format
+  `nightly-master-riscv64-YYYYMMDD-<sha>` and publishes the same five build
+  artifacts to both workflow artifacts and GitHub prerelease assets.
 - Key risks: procfs safecopy fallback noise and SMP not implemented
   (see `issue.md`)
 - A4 is closed: `mkdisk` artifacts now boot from disk image via the S-mode U-Boot chain.
@@ -715,7 +726,9 @@ qemu-system-riscv64 -machine virt -m 256M -nographic \
 2. 调用 `minix/releasetools/riscv64/mkdisk.sh` 生成磁盘镜像并压缩
 3. 导出内核 ELF 与开发用 sysroot（头文件/库）
 4. 生成统一 `SHA256SUMS.txt`
-5. 自动创建/更新 GitHub Release 并上传以下产物
+5. 执行 QEMU 交互式 gate（`neofetch` + 关机链），失败则阻断发布
+6. 上传 QEMU smoke 日志到 workflow artifact（步骤 `if: always()`）
+7. 自动创建/更新 GitHub Release 并上传以下产物
 
 构建产物命名规范（含构建提交 hash）/ Artifact naming (with commit hash):
 - `minix-cat-<tag>-<shortsha>-riscv64.img`
@@ -729,6 +742,8 @@ qemu-system-riscv64 -machine virt -m 256M -nographic \
 - 若首次启用失败，请确认仓库 Actions 权限允许 workflow 写 Release。
 - `shortsha` 来自当前构建提交（`git rev-parse --short=12 $GITHUB_SHA`）。
 - 构建时间较长（完整 `distribution`），建议通过 tag 触发正式发布。
+- 若发布在 QEMU gate 阶段失败，请优先下载
+  `riscv64-qemu-smoke-log-<tag>-<sha>` 排查来宾输出。
 - 为降低 GitHub hosted runner 磁盘不足风险，workflow 在安装依赖前会执行
   `Reclaim runner disk space`，清理预装大体积组件（dotnet/android/ghc/CodeQL）、
   swap、docker 残留与 apt 缓存，并打印清理前后磁盘占用。
@@ -771,6 +786,39 @@ qemu-system-riscv64 -machine virt -m 256M -nographic \
   - `lib/Makefile`（distribution 实际使用的库构建入口）中为
     `riscv64/riscv` 添加 `../minix/lib/libvirtio_mmio`
   - `minix/lib/Makefile` 同步包含 `libvirtio_mmio`
+
+## GitHub Actions Nightly Pipeline / GitHub Actions 每日构建流水线
+
+Nightly workflow 文件：`/.github/workflows/nightly-riscv64.yml`
+
+触发方式 / Triggers:
+- `schedule`（UTC `20 18 * * *`，每日一次）
+- 手动触发 `workflow_dispatch`
+
+Nightly 行为 / Pipeline behavior:
+1. 与 release 相同的 `obj.intrgcc` 基线构建：`tools -> distribution`
+2. 产出并打包 5 件标准产物（`img/img.gz/elf/sysroot/SHA256SUMS`）
+3. 执行 QEMU 交互式 gate（`neofetch` + 关机链）
+4. 上传 smoke 日志 artifact：`riscv64-nightly-smoke-log-<date>-<sha>`
+5. 上传构建产物 artifact：`riscv64-nightly-<date>-<sha>`
+6. 创建 nightly tag 并发布 prerelease
+
+Nightly tag 规则 / Nightly tag format:
+- `nightly-master-riscv64-YYYYMMDD-<shortsha>`
+- 例如：`nightly-master-riscv64-20260219-abcdef123456`
+
+Nightly 产物命名 / Nightly asset naming:
+- `minix-cat-nightly-<YYYYMMDD>-<shortsha>-riscv64.img`
+- `minix-cat-nightly-<YYYYMMDD>-<shortsha>-riscv64.img.gz`
+- `minix-cat-nightly-<YYYYMMDD>-<shortsha>-riscv64.elf`
+- `minix-cat-nightly-<YYYYMMDD>-<shortsha>-riscv64-sysroot.tar.gz`
+- `SHA256SUMS.txt`
+
+说明 / Notes:
+- Nightly 会把上述 5 件产物同时放入：
+  1) Actions workflow artifacts；2) GitHub Release（prerelease）资产。
+- 若出现“某次 nightly 没有产物”，先确认该 run 是否被取消；取消的 run 可能显示
+  `0 artifact`，不代表成功 run 未上传。
 
 ## 性能优化 / Performance Optimization
 
@@ -833,5 +881,5 @@ MINIX is licensed under BSD. See LICENSE in the source tree.
 
 ---
 
-**最后更新 / Last updated**：2026-02-18  
-**版本 / Version**：1.14
+**最后更新 / Last updated**：2026-02-19  
+**版本 / Version**：1.25
