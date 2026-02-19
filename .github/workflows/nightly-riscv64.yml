@@ -390,6 +390,24 @@ jobs:
           git push origin "refs/tags/${tag}"
           echo "Created nightly tag: ${tag}"
 
+      - name: Publish nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.nightly_tag }}
+          target_commitish: ${{ github.sha }}
+          name: MINIX riscv64 nightly ${{ steps.meta.outputs.nightly_tag }}
+          prerelease: true
+          make_latest: false
+          generate_release_notes: false
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          files: |
+            ${{ steps.meta.outputs.image_path }}
+            ${{ steps.meta.outputs.image_gz_path }}
+            ${{ steps.meta.outputs.elf_path }}
+            ${{ steps.meta.outputs.sysroot_path }}
+            ${{ steps.meta.outputs.sums_path }}
+
       - name: Write nightly summary
         if: always()
         shell: bash
