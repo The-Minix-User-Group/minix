@@ -404,18 +404,6 @@ jobs:
           if-no-files-found: ignore
           path: /tmp/qemu-neofetch-smoke.log
 
-      - name: Upload build artifacts to workflow
-        uses: actions/upload-artifact@v4
-        with:
-          name: riscv64-release-${{ steps.meta.outputs.safe_tag }}-${{ steps.package.outputs.short_sha }}
-          if-no-files-found: error
-          path: |
-            ${{ steps.package.outputs.image_path }}
-            ${{ steps.package.outputs.image_gz_path }}
-            ${{ steps.package.outputs.elf_path }}
-            ${{ steps.package.outputs.sysroot_path }}
-            ${{ steps.package.outputs.sums_path }}
-
       - name: Native toolchain runtime gate (non-blocking)
         id: native_gate
         if: always()
@@ -446,6 +434,18 @@ jobs:
           if-no-files-found: ignore
           path: |
             /tmp/native-toolchain-gate.log
+
+      - name: Upload build artifacts to workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: riscv64-release-${{ steps.meta.outputs.safe_tag }}-${{ steps.package.outputs.short_sha }}
+          if-no-files-found: error
+          path: |
+            ${{ steps.package.outputs.image_path }}
+            ${{ steps.package.outputs.image_gz_path }}
+            ${{ steps.package.outputs.elf_path }}
+            ${{ steps.package.outputs.sysroot_path }}
+            ${{ steps.package.outputs.sums_path }}
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
