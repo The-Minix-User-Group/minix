@@ -95,7 +95,7 @@ jobs:
           nightly_stamp="$(date -u +%Y%m%d)"
           short_sha="$(git rev-parse --short=12 "${GITHUB_SHA}")"
           base_name="minix-cat-nightly-${nightly_stamp}-${short_sha}-riscv64"
-          nightly_tag="nightly-riscv64-${nightly_stamp}-${short_sha}"
+          nightly_tag="nightly-master-riscv64-${nightly_stamp}-${short_sha}"
 
           image_name="${base_name}.img"
           image_path="/tmp/${image_name}"
