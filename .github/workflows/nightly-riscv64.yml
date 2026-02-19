@@ -373,6 +373,81 @@ jobs:
             ${{ steps.meta.outputs.sysroot_path }}
             ${{ steps.meta.outputs.sums_path }}
 
+      - name: Native toolchain build lane (non-blocking)
+        id: native_build
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="/tmp/native-toolchain-build.log"
+          echo "[native-ci] build log: ${log}"
+          set +e
+          ./minix/tests/riscv64/native_toolchain_build.sh \
+            --objdir "${OBJDIR}" \
+            --machine "${MACHINE}" \
+            --jobs "$(nproc)" \
+            >"${log}" 2>&1
+          rc=$?
+          set -e
+          echo "rc=${rc}" >>"${GITHUB_OUTPUT}"
+          echo "[native-ci] native_toolchain_build rc=${rc}"
+
+      - name: Native toolchain image build (non-blocking)
+        id: native_image
+        if: always() && steps.native_build.outputs.rc == '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="/tmp/native-toolchain-image.log"
+          image="/tmp/minix-native-toolchain-ci.img"
+          echo "[native-ci] image log: ${log}"
+          set +e
+          ./minix/releasetools/riscv64/mkdisk.sh \
+            -d "${OBJDIR}" \
+            -o "${image}" \
+            -s 1024 \
+            -u 768 \
+            -U \
+            >"${log}" 2>&1
+          rc=$?
+          set -e
+          echo "rc=${rc}" >>"${GITHUB_OUTPUT}"
+          echo "image=${image}" >>"${GITHUB_OUTPUT}"
+          echo "[native-ci] native image rc=${rc}"
+
+      - name: Native toolchain runtime gate (non-blocking)
+        id: native_gate
+        if: always() && steps.native_image.outputs.rc == '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="/tmp/native-toolchain-gate.log"
+          image="${{ steps.native_image.outputs.image }}"
+          echo "[native-ci] gate log: ${log}"
+          set +e
+          ./minix/tests/riscv64/native_toolchain_gate.sh \
+            --kernel "${OBJDIR}/minix/kernel/kernel" \
+            --destdir "${OBJDIR}/destdir.evbriscv64" \
+            --disk-image "${image}" \
+            --timeout 240 \
+            --cmd-timeout 120 \
+            >"${log}" 2>&1
+          rc=$?
+          set -e
+          echo "rc=${rc}" >>"${GITHUB_OUTPUT}"
+          echo "[native-ci] native gate rc=${rc}"
+
+      - name: Upload native toolchain logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: riscv64-nightly-native-toolchain-logs-${{ steps.meta.outputs.nightly_stamp }}-${{ steps.meta.outputs.short_sha }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            /tmp/native-toolchain-build.log
+            /tmp/native-toolchain-image.log
+            /tmp/native-toolchain-gate.log
+
       - name: Create nightly tag
         shell: bash
         run: |
@@ -412,6 +487,12 @@ jobs:
         if: always()
         shell: bash
         run: |
+          build_rc="${{ steps.native_build.outputs.rc }}"
+          image_rc="${{ steps.native_image.outputs.rc }}"
+          gate_rc="${{ steps.native_gate.outputs.rc }}"
+          [ -n "${build_rc}" ] || build_rc="n/a"
+          [ -n "${image_rc}" ] || image_rc="n/a"
+          [ -n "${gate_rc}" ] || gate_rc="n/a"
           {
             echo "## riscv64 Nightly"
             echo ""
@@ -423,4 +504,11 @@ jobs:
             echo "- Compressed image: \`${{ steps.meta.outputs.image_gz_name }}\`"
             echo "- ELF: \`${{ steps.meta.outputs.elf_name }}\`"
             echo "- Sysroot: \`${{ steps.meta.outputs.sysroot_name }}\`"
+            echo ""
+            echo "### Native Toolchain Lane (non-blocking)"
+            echo "- Build rc: \`${build_rc}\`"
+            echo "- Image rc: \`${image_rc}\`"
+            echo "- Gate rc: \`${gate_rc}\`"
+            echo "- Logs: artifact \`riscv64-nightly-native-toolchain-logs-${{ steps.meta.outputs.nightly_stamp }}-${{ steps.meta.outputs.short_sha }}\`"
+            echo "- Note: non-zero gate result is currently tracked under issue \`#37\`."
           } >> "${GITHUB_STEP_SUMMARY}"
