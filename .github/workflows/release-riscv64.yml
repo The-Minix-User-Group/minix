@@ -182,8 +182,8 @@ jobs:
         run: |
           set -euo pipefail
           version_tag="${{ steps.meta.outputs.safe_tag }}"
-          short_sha="$(git rev-parse --short=12 "${GITHUB_SHA}")"
-          base_name="minix-cat-${version_tag}-${short_sha}-riscv64"
+          short_sha="$(git rev-parse --short=11 "${GITHUB_SHA}")"
+          base_name="minix-cat-${version_tag}-${short_sha}"
 
           image_name="${base_name}.img"
           image_path="/tmp/${image_name}"
