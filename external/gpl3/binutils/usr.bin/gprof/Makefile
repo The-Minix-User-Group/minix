@@ -25,10 +25,5 @@ gprof.info:	bfdver.texi
 .include <bsd.prog.mk>
 .include <bsd.info.mk>
 
-.if !defined(__MINIX)
 LDADD+=	-lintl -lz
 DPADD+=	${LIBINTL} ${LIBZ}
-.else
-LDADD+=		-lz
-DPADD+=		${LIBZ}
-.endif # !defined(__MINIX)
