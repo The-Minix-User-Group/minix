@@ -1,0 +1,388 @@
+name: riscv64-nightly
+
+on:
+  schedule:
+    # 18:20 UTC daily (02:20 Asia/Shanghai)
+    - cron: "20 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: riscv64-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-nightly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      OBJDIR: obj.intrgcc
+      MACHINE: evbriscv64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reclaim runner disk space
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup"
+          df -h
+
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL || true
+
+          if command -v docker >/dev/null 2>&1; then
+            sudo docker system prune -af || true
+          fi
+
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+
+          echo "Disk usage after cleanup"
+          df -h
+
+      - name: Install host dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            bc \
+            bison \
+            build-essential \
+            byacc \
+            ca-certificates \
+            curl \
+            e2fsprogs \
+            file \
+            flex \
+            gawk \
+            gperf \
+            libelf-dev \
+            libncurses-dev \
+            libssl-dev \
+            m4 \
+            make \
+            parted \
+            pkg-config \
+            python3 \
+            python3-pip \
+            qemu-system-misc \
+            rsync \
+            texinfo \
+            u-boot-qemu \
+            u-boot-tools
+
+      - name: Resolve nightly metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          nightly_stamp="$(date -u +%Y%m%d)"
+          short_sha="$(git rev-parse --short=12 "${GITHUB_SHA}")"
+          base_name="minix-cat-nightly-${nightly_stamp}-${short_sha}-riscv64"
+
+          image_name="${base_name}.img"
+          image_path="/tmp/${image_name}"
+          image_gz_name="${image_name}.gz"
+          image_gz_path="/tmp/${image_gz_name}"
+          elf_name="${base_name}.elf"
+          elf_path="/tmp/${elf_name}"
+          sysroot_name="${base_name}-sysroot.tar.gz"
+          sysroot_path="/tmp/${sysroot_name}"
+          sums_path="/tmp/SHA256SUMS.txt"
+
+          echo "nightly_stamp=${nightly_stamp}" >>"${GITHUB_OUTPUT}"
+          echo "short_sha=${short_sha}" >>"${GITHUB_OUTPUT}"
+          echo "artifact_base=${base_name}" >>"${GITHUB_OUTPUT}"
+          echo "image_name=${image_name}" >>"${GITHUB_OUTPUT}"
+          echo "image_path=${image_path}" >>"${GITHUB_OUTPUT}"
+          echo "image_gz_name=${image_gz_name}" >>"${GITHUB_OUTPUT}"
+          echo "image_gz_path=${image_gz_path}" >>"${GITHUB_OUTPUT}"
+          echo "elf_name=${elf_name}" >>"${GITHUB_OUTPUT}"
+          echo "elf_path=${elf_path}" >>"${GITHUB_OUTPUT}"
+          echo "sysroot_name=${sysroot_name}" >>"${GITHUB_OUTPUT}"
+          echo "sysroot_path=${sysroot_path}" >>"${GITHUB_OUTPUT}"
+          echo "sums_path=${sums_path}" >>"${GITHUB_OUTPUT}"
+
+      - name: Build tools (obj.intrgcc)
+        shell: bash
+        run: |
+          set -euo pipefail
+          HARDENING_OFF="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -fno-stack-protector"
+          MKPCI=no HOST_CFLAGS="-O -fcommon ${HARDENING_OFF}" HOST_CXXFLAGS="-O ${HARDENING_OFF}" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+          ./build.sh -U -m "${MACHINE}" -O "${OBJDIR}" \
+            -V AVAILABLE_COMPILER=gcc \
+            -V ACTIVE_CC=gcc \
+            -V ACTIVE_CPP=gcc \
+            -V ACTIVE_CXX=gcc \
+            -V ACTIVE_OBJC=gcc \
+            -V MKGCC=yes \
+            -V MKGCCCMDS=yes \
+            tools
+
+      - name: Build distribution (obj.intrgcc)
+        shell: bash
+        run: |
+          set -euo pipefail
+          HARDENING_OFF="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -fno-stack-protector"
+          MKPCI=no HOST_CFLAGS="-O -fcommon ${HARDENING_OFF}" HOST_CXXFLAGS="-O ${HARDENING_OFF}" HAVE_GOLD=no HAVE_LLVM=no MKLLVM=no \
+          ./build.sh -U -u -j"$(nproc)" -m "${MACHINE}" -O "${OBJDIR}" \
+            -V AVAILABLE_COMPILER=gcc \
+            -V ACTIVE_CC=gcc \
+            -V ACTIVE_CPP=gcc \
+            -V ACTIVE_CXX=gcc \
+            -V ACTIVE_OBJC=gcc \
+            -V RISCV_ARCH_FLAGS='-march=RV64IMAFD -mcmodel=medany' \
+            -V NOGCCERROR=yes \
+            -V MKGCC=yes \
+            -V MKGCCCMDS=no \
+            -V MKCXX=no \
+            -V MKLIBSTDCXX=no \
+            -V MKLIBOBJC=no \
+            -V MKLIBGOMP=no \
+            -V MKATF=no \
+            -V USE_PCI=no \
+            -V CHECKFLIST_FLAGS='-m -e' \
+            distribution
+
+      - name: Build nightly artifacts
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          kernel_path="${PWD}/${OBJDIR}/minix/kernel/kernel"
+          destdir_root="${PWD}/${OBJDIR}/destdir.evbriscv64"
+
+          OUTPUT="${{ steps.meta.outputs.image_path }}" DESTDIR="${PWD}/${OBJDIR}" \
+            minix/releasetools/riscv64/mkdisk.sh
+
+          gzip -n -9 -c "${{ steps.meta.outputs.image_path }}" >"${{ steps.meta.outputs.image_gz_path }}"
+
+          cp "${kernel_path}" "${{ steps.meta.outputs.elf_path }}"
+
+          sysroot_items=()
+          for path in usr/include usr/lib lib; do
+            if [[ -e "${destdir_root}/${path}" ]]; then
+              sysroot_items+=("${path}")
+            fi
+          done
+          if [[ "${#sysroot_items[@]}" -eq 0 ]]; then
+            echo "No sysroot headers/libs found under ${destdir_root}" >&2
+            exit 1
+          fi
+          tar -C "${destdir_root}" -czf "${{ steps.meta.outputs.sysroot_path }}" "${sysroot_items[@]}"
+
+          (
+            cd /tmp
+            sha256sum \
+              "${{ steps.meta.outputs.image_name }}" \
+              "${{ steps.meta.outputs.image_gz_name }}" \
+              "${{ steps.meta.outputs.elf_name }}" \
+              "${{ steps.meta.outputs.sysroot_name }}" \
+              >"$(basename "${{ steps.meta.outputs.sums_path }}")"
+          )
+
+      - name: QEMU interactive smoke test (neofetch + shutdown chain)
+        timeout-minutes: 8
+        shell: bash
+        env:
+          CI_IMAGE_PATH: ${{ steps.meta.outputs.image_path }}
+          QEMU_SMOKE_LOG: /tmp/qemu-neofetch-smoke.log
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          import time
+          import fcntl
+          import select
+          import subprocess
+          import sys
+
+          image_path = os.environ["CI_IMAGE_PATH"]
+          log_path = os.environ["QEMU_SMOKE_LOG"]
+          uboot_path = "/usr/lib/u-boot/qemu-riscv64_smode/uboot.elf"
+
+          if not os.path.isfile(image_path):
+            print(f"[smoke] missing image: {image_path}", file=sys.stderr)
+            sys.exit(1)
+          if not os.path.isfile(uboot_path):
+            print(f"[smoke] missing u-boot: {uboot_path}", file=sys.stderr)
+            sys.exit(1)
+
+          cmd = [
+            "qemu-system-riscv64",
+            "-machine", "virt",
+            "-m", "512M",
+            "-nographic",
+            "-bios", "default",
+            "-kernel", uboot_path,
+            "-drive", f"if=none,file={image_path},format=raw,id=hd0",
+            "-device", "virtio-blk-device,drive=hd0",
+          ]
+          print("[smoke] launching qemu:", " ".join(cmd))
+
+          proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+          )
+          if proc.stdin is None or proc.stdout is None:
+            print("[smoke] failed to open qemu stdio", file=sys.stderr)
+            sys.exit(1)
+
+          fd = proc.stdout.fileno()
+          flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+          fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+          os.makedirs(os.path.dirname(log_path), exist_ok=True)
+          logf = open(log_path, "w", encoding="utf-8", errors="ignore")
+          buf = ""
+
+          def pump(seconds=0.4):
+            global buf
+            end = time.time() + seconds
+            while time.time() < end:
+              r, _, _ = select.select([fd], [], [], 0.1)
+              if not r:
+                if proc.poll() is not None:
+                  return
+                continue
+              try:
+                data = os.read(fd, 65536)
+              except BlockingIOError:
+                data = b""
+              if not data:
+                if proc.poll() is not None:
+                  return
+                continue
+              text = data.decode("utf-8", errors="ignore")
+              buf += text
+              if len(buf) > 800000:
+                buf = buf[-400000:]
+              logf.write(text)
+              logf.flush()
+
+          def wait_for(pattern, timeout, label):
+            rx = re.compile(pattern, re.M)
+            end = time.time() + timeout
+            while time.time() < end:
+              if rx.search(buf):
+                print(f"[smoke] ok: {label}")
+                return True
+              if proc.poll() is not None:
+                break
+              pump(0.5)
+            print(f"[smoke] timeout: {label}", file=sys.stderr)
+            return False
+
+          def send_line(line):
+            print(f"[smoke] send: {line}")
+            proc.stdin.write((line + "\n").encode("utf-8"))
+            proc.stdin.flush()
+
+          def shutdown_qemu():
+            if proc.poll() is not None:
+              return
+            try:
+              proc.stdin.write(b"\x01x")
+              proc.stdin.flush()
+            except Exception:
+              pass
+            end = time.time() + 8
+            while time.time() < end and proc.poll() is None:
+              pump(0.3)
+            if proc.poll() is None:
+              proc.terminate()
+              try:
+                proc.wait(timeout=5)
+              except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+          ok = True
+          try:
+            ok &= wait_for(r"(?:^|\n)#\s", 240, "shell prompt")
+
+            if ok:
+              send_line("neofetch")
+              ok &= wait_for(r"Donz Fetch", 90, "neofetch banner")
+              ok &= wait_for(r"OS:\s+Minix Cat", 90, "neofetch os line")
+              ok &= wait_for(r"(?:^|\n)#\s", 90, "prompt after neofetch")
+
+            if ok:
+              send_line("/sbin/shutdown -p now || /sbin/halt -p || /sbin/poweroff || /sbin/reboot -p || /sbin/reboot")
+              ok &= wait_for(
+                r"MINIX has halted and will now power off|MINIX will now be shut down",
+                150,
+                "shutdown banner",
+              )
+
+            if re.search(r"sh:\s+/sbin/(shutdown|halt|poweroff|reboot): not found", buf):
+              print("[smoke] detected missing shutdown binary in guest output", file=sys.stderr)
+              ok = False
+          finally:
+            shutdown_qemu()
+            pump(1.0)
+            logf.close()
+
+          if not ok:
+            print(f"[smoke] failed. log saved to: {log_path}", file=sys.stderr)
+            sys.exit(1)
+
+          print(f"[smoke] passed. log saved to: {log_path}")
+          PY
+
+      - name: Upload QEMU smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: riscv64-nightly-smoke-log-${{ steps.meta.outputs.nightly_stamp }}-${{ steps.meta.outputs.short_sha }}
+          if-no-files-found: ignore
+          path: /tmp/qemu-neofetch-smoke.log
+          retention-days: 14
+
+      - name: Upload nightly artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: riscv64-nightly-${{ steps.meta.outputs.nightly_stamp }}-${{ steps.meta.outputs.short_sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            ${{ steps.meta.outputs.image_path }}
+            ${{ steps.meta.outputs.image_gz_path }}
+            ${{ steps.meta.outputs.elf_path }}
+            ${{ steps.meta.outputs.sysroot_path }}
+            ${{ steps.meta.outputs.sums_path }}
+
+      - name: Write nightly summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## riscv64 Nightly"
+            echo ""
+            echo "- Date (UTC): ${{ steps.meta.outputs.nightly_stamp }}"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Artifact base: \`${{ steps.meta.outputs.artifact_base }}\`"
+            echo "- Image: \`${{ steps.meta.outputs.image_name }}\`"
+            echo "- Compressed image: \`${{ steps.meta.outputs.image_gz_name }}\`"
+            echo "- ELF: \`${{ steps.meta.outputs.elf_name }}\`"
+            echo "- Sysroot: \`${{ steps.meta.outputs.sysroot_name }}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
