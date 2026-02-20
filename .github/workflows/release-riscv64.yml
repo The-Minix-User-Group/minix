@@ -149,6 +149,8 @@ jobs:
             -V ACTIVE_OBJC=gcc \
             -V MKGCC=yes \
             -V MKGCCCMDS=yes \
+            -V MKCXX=yes \
+            -V MKLIBSTDCXX=yes \
             tools
 
       - name: Prepare GCC include install dirs (obj.intrgcc)
@@ -190,12 +192,46 @@ jobs:
             -V NOGCCERROR=yes \
             -V MKGCC=yes \
             -V MKGCCCMDS=yes \
+            -V MKCXX=yes \
+            -V MKLIBSTDCXX=yes \
             -V MKLIBOBJC=no \
             -V MKLIBGOMP=no \
             -V MKATF=no \
             -V USE_PCI=no \
             -V CHECKFLIST_FLAGS='-m -e' \
             distribution
+
+      - name: Verify native toolchain payload (DESTDIR)
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${PWD}/${OBJDIR}/destdir.evbriscv64"
+          missing=()
+
+          for bin in cc gcc c++ g++ cpp as ld ar ranlib nm objcopy objdump readelf strip; do
+            if [[ ! -x "${root}/usr/bin/${bin}" ]]; then
+              missing+=("usr/bin/${bin}")
+            fi
+          done
+
+          for entry in \
+            usr/lib/libgcc.a \
+            usr/lib/libgcc_eh.a \
+            usr/lib/libstdc++.a \
+            usr/include/stdio.h \
+            usr/include/g++/bits/c++config.h; do
+            if [[ ! -e "${root}/${entry}" ]]; then
+              missing+=("${entry}")
+            fi
+          done
+
+          if [[ "${#missing[@]}" -ne 0 ]]; then
+            echo "[native-toolchain] missing payload entries:" >&2
+            printf '  - %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+          echo "[native-toolchain] payload check PASS"
 
       - name: Build release artifacts
         id: package
@@ -427,40 +463,60 @@ jobs:
           if-no-files-found: ignore
           path: /tmp/qemu-neofetch-smoke.log
 
-      - name: Native toolchain runtime gate
-        id: native_gate
+      - name: Full riscv64 test suite (blocking)
+        id: full_suite
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          log="/tmp/native-toolchain-gate.log"
+          log="/tmp/riscv64-full-suite.log"
           image="${{ steps.package.outputs.image_path }}"
-          echo "[native-ci] gate log: ${log}"
-          if ./minix/tests/riscv64/native_toolchain_gate.sh \
-              --kernel "${OBJDIR}/minix/kernel/kernel" \
-              --destdir "${OBJDIR}/destdir.evbriscv64" \
-              --disk-image "${image}" \
-              --timeout 240 \
-              --cmd-timeout 120 \
-              >"${log}" 2>&1; then
+          echo "[full-suite] log: ${log}"
+          : >"${log}"
+          export KERNEL="${OBJDIR}/minix/kernel/kernel"
+          export DESTDIR="${OBJDIR}/destdir.evbriscv64"
+          export SMOKE_DISK_IMAGE="${image}"
+          export SMOKE_DD_UNSAFE=1
+          export SMOKE_ROUNDS=1
+          export SMOKE_GATE_TIMEOUT=180
+          export NATIVE_GATE_TIMEOUT=300
+          export NATIVE_GATE_CMD_TIMEOUT=180
+          run_case() {
+            local name="$1"
+            shift
+            echo "[full-suite] >>> ${name}" | tee -a "${log}"
+            if "$@" >>"${log}" 2>&1; then
+              echo "[full-suite] ${name}: PASS" | tee -a "${log}"
+            else
+              local rc="$?"
+              echo "[full-suite] ${name}: FAIL (rc=${rc})" | tee -a "${log}"
+              return "${rc}"
+            fi
+          }
+
+          if run_case build ./minix/tests/riscv64/run_tests.sh build \
+             && run_case user ./minix/tests/riscv64/run_tests.sh user \
+             && run_case native ./minix/tests/riscv64/run_tests.sh native \
+             && run_case kernel ./minix/tests/riscv64/run_tests.sh kernel \
+             && run_case gate timeout 900 ./minix/tests/riscv64/run_tests.sh gate; then
             echo "rc=0" >>"${GITHUB_OUTPUT}"
-            echo "[native-ci] native gate rc=0"
+            echo "[full-suite] rc=0"
           else
             rc=$?
             echo "rc=${rc}" >>"${GITHUB_OUTPUT}"
-            echo "[native-ci] native gate rc=${rc}"
+            echo "[full-suite] rc=${rc}"
             tail -n 200 "${log}" || true
             exit "${rc}"
           fi
 
-      - name: Upload native toolchain logs
+      - name: Upload full test suite log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: riscv64-release-native-toolchain-logs-${{ steps.meta.outputs.safe_tag }}-${{ steps.package.outputs.short_sha }}
+          name: riscv64-release-full-suite-log-${{ steps.meta.outputs.safe_tag }}-${{ steps.package.outputs.short_sha }}
           if-no-files-found: ignore
           path: |
-            /tmp/native-toolchain-gate.log
+            /tmp/riscv64-full-suite.log
 
       - name: Upload build artifacts to workflow
         uses: actions/upload-artifact@v4
@@ -494,8 +550,8 @@ jobs:
         if: always()
         shell: bash
         run: |
-          gate_rc="${{ steps.native_gate.outputs.rc }}"
-          [ -n "${gate_rc}" ] || gate_rc="n/a"
+          suite_rc="${{ steps.full_suite.outputs.rc }}"
+          [ -n "${suite_rc}" ] || suite_rc="n/a"
           {
             echo "## riscv64 Release CI"
             echo ""
@@ -504,8 +560,9 @@ jobs:
             echo "- CI stamp (UTC): \`${{ steps.package.outputs.ci_stamp }}\`"
             echo "- Artifact base: \`${{ steps.package.outputs.artifact_base }}\`"
             echo ""
-            echo "### Native Toolchain Lane (blocking)"
-            echo "- Release image mode: native (/usr payload enabled)"
-            echo "- Gate rc: \`${gate_rc}\`"
-            echo "- Logs: artifact \`riscv64-release-native-toolchain-logs-${{ steps.meta.outputs.safe_tag }}-${{ steps.package.outputs.short_sha }}\`"
+            echo "### Full Test Suite (blocking)"
+            echo "- Runner sequence: \`build -> user -> native -> kernel -> gate(timeout 900s)\`"
+            echo "- Environment: \`SMOKE_DD_UNSAFE=1 SMOKE_ROUNDS=1\`"
+            echo "- Suite rc: \`${suite_rc}\`"
+            echo "- Logs: artifact \`riscv64-release-full-suite-log-${{ steps.meta.outputs.safe_tag }}-${{ steps.package.outputs.short_sha }}\`"
           } >> "${GITHUB_STEP_SUMMARY}"

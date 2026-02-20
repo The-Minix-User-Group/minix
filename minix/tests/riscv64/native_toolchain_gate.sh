@@ -152,13 +152,19 @@ echo "[native-gate] qemu script: $QEMU_SCRIPT"
 echo "[native-gate] disk image: $DISK_IMAGE"
 
 PREP_EXT2_CMD='prepare_ext2=PATH=/sbin:/bin:/usr/bin; test -x /service/ext2 && (minix-service up /service/ext2 >/dev/null 2>&1 || minix-service -c up /service/ext2 >/dev/null 2>&1 || true)'
-PREP_USR_MOUNT_CMD='prepare_usr_mount=PATH=/sbin:/bin:/usr/bin; umount /usr >/dev/null 2>&1 || true; mount -r -t ext2 /dev/c0d0p2 /usr >/dev/null 2>&1 || mount -r -t ext2 /dev/c0d0p1 /usr >/dev/null 2>&1'
+PREP_USR_MOUNT_CMD='prepare_usr_mount=PATH=/sbin:/bin:/usr/bin; umount /usr >/dev/null 2>&1 || true; mount -t ext2 /dev/c0d0p2 /usr >/dev/null 2>&1'
+PREP_TMP_CMD='prepare_tmp=PATH=/sbin:/bin:/usr/bin; test -w /usr'
 CC_DETECT_CMD='native_cc_detect=PATH=/sbin:/bin:/usr/bin; test -x /usr/bin/cc || test -x /usr/bin/gcc || test -x /usr/bin/clang'
-TOOLS_CMD='native_tools=PATH=/sbin:/bin:/usr/bin; ok=1; for t in as ld ar ranlib; do command -v "$t" >/dev/null 2>&1 || ok=0; done; test "$ok" -eq 1'
+CXX_DETECT_CMD='native_cxx_detect=PATH=/sbin:/bin:/usr/bin; command -v c++ >/dev/null 2>&1 || command -v g++ >/dev/null 2>&1'
+TOOLS_CMD='native_tools=PATH=/sbin:/bin:/usr/bin; command -v as >/dev/null 2>&1 && command -v ld >/dev/null 2>&1 && command -v ar >/dev/null 2>&1 && command -v ranlib >/dev/null 2>&1'
+TOOLS_EXT_CMD='native_tools_ext=PATH=/sbin:/bin:/usr/bin; command -v nm >/dev/null 2>&1 && command -v objcopy >/dev/null 2>&1 && command -v objdump >/dev/null 2>&1 && command -v readelf >/dev/null 2>&1 && command -v strip >/dev/null 2>&1'
 HELLO_PREPROCESS_CMD="native_hello_preprocess=PATH=/sbin:/bin:/usr/bin; printf 'int main(void){return 0;}\\n' | cc -pipe -x c - -E >/dev/null"
 HELLO_TO_ASM_CMD="native_hello_to_asm=PATH=/sbin:/bin:/usr/bin; printf 'int main(void){return 0;}\\n' | cc -pipe -x c - -S -o /dev/null"
 AS_STDIN_CMD="native_as_stdin=PATH=/sbin:/bin:/usr/bin; printf '.text\\n.globl _start\\n_start:\\n  nop\\n' | as -o /dev/null"
 HELLO_BUILD_CMD="native_hello_build=PATH=/sbin:/bin:/usr/bin; printf 'int main(void){return 0;}\\n' | TMPDIR=/ TMP=/ TEMP=/ cc -pipe -x c - -c -o /dev/null"
+AR_RANLIB_CMD='native_ar_ranlib=PATH=/sbin:/bin:/usr/bin; printf ".text\n.globl nt\nnt:\n  nop\n" | as -o /usr/nt.o && ar rcs /usr/nt.a /usr/nt.o && ranlib /usr/nt.a && test -s /usr/nt.a'
+HELLO_LINK_RUN_CMD='native_hello_link_run=PATH=/sbin:/bin:/usr/bin; printf "#include <stdio.h>\nint main(void){puts(\"NATIVE_TOOLCHAIN_OK\");return 0;}\n" | TMPDIR=/usr TMP=/usr TEMP=/usr cc -pipe -static -x c - -o /usr/ntc && /usr/ntc | grep -q NATIVE_TOOLCHAIN_OK'
+CXX_LINK_RUN_CMD='native_cxx_link_run=PATH=/sbin:/bin:/usr/bin; c=$(command -v c++ || command -v g++); printf "int main(){return 0;}\n" | TMPDIR=/usr TMP=/usr TEMP=/usr "$c" -pipe -static -x c++ - -o /usr/ntcxx && /usr/ntcxx >/dev/null 2>&1'
 
 base_probe_args=(
   --qemu-script "$QEMU_SCRIPT"
@@ -169,70 +175,27 @@ base_probe_args=(
   --cmd-timeout "$CMD_TIMEOUT"
 )
 
-if python3 "$RUNTIME_PROBE" "${base_probe_args[@]}" --require-disk-node; then
-  :
-else
-  rc=$?
-  if [ "$rc" -eq 2 ]; then
-    echo "[native-gate] SKIP"
-  else
-    echo "[native-gate] FAIL"
-  fi
-  exit "$rc"
-fi
-
-detect_probe_args=(
+probe_args=(
   "${base_probe_args[@]}"
+  --require-disk-node
   --only-custom-cmds
   --cmd "$PREP_EXT2_CMD"
   --cmd "$PREP_USR_MOUNT_CMD"
+  --cmd "$PREP_TMP_CMD"
   --cmd "$CC_DETECT_CMD"
-)
-
-if python3 "$RUNTIME_PROBE" "${detect_probe_args[@]}"; then
-  :
-else
-  rc=$?
-  if [ "$rc" -eq 2 ]; then
-    echo "[native-gate] SKIP"
-    exit 2
-  fi
-  echo "[native-gate] SKIP: native compiler unavailable in runtime image"
-  exit 2
-fi
-
-toolchain_probe_args=(
-  "${base_probe_args[@]}"
-  --only-custom-cmds
-  --cmd "$PREP_EXT2_CMD"
-  --cmd "$PREP_USR_MOUNT_CMD"
+  --cmd "$CXX_DETECT_CMD"
   --cmd "$TOOLS_CMD"
+  --cmd "$TOOLS_EXT_CMD"
   --cmd "$HELLO_PREPROCESS_CMD"
   --cmd "$HELLO_TO_ASM_CMD"
   --cmd "$AS_STDIN_CMD"
-)
-
-if python3 "$RUNTIME_PROBE" "${toolchain_probe_args[@]}"; then
-  :
-else
-  rc=$?
-  if [ "$rc" -eq 2 ]; then
-    echo "[native-gate] SKIP"
-    exit 2
-  fi
-  echo "[native-gate] FAIL: toolchain staged checks failed (assembler/runtime path unstable; see issue #37)"
-  exit "$rc"
-fi
-
-full_compile_probe_args=(
-  "${base_probe_args[@]}"
-  --only-custom-cmds
-  --cmd "$PREP_EXT2_CMD"
-  --cmd "$PREP_USR_MOUNT_CMD"
+  --cmd "$AR_RANLIB_CMD"
   --cmd "$HELLO_BUILD_CMD"
+  --cmd "$HELLO_LINK_RUN_CMD"
+  --cmd "$CXX_LINK_RUN_CMD"
 )
 
-if python3 "$RUNTIME_PROBE" "${full_compile_probe_args[@]}"; then
+if python3 "$RUNTIME_PROBE" "${probe_args[@]}"; then
   echo "[native-gate] PASS"
   exit 0
 else
@@ -240,7 +203,7 @@ else
   if [ "$rc" -eq 2 ]; then
     echo "[native-gate] SKIP"
   else
-    echo "[native-gate] FAIL: full guest object compile remains unstable (see panic/inode evidence in issue #37)"
+    echo "[native-gate] FAIL: full native toolchain link/run checks failed"
   fi
   exit "$rc"
 fi
