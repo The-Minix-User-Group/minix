@@ -45,13 +45,22 @@ COPYHEADERS= \
 .for _src _dst in ${G_CONFIGLINKS}
 . if ${_dst} == "gthr-default.h"
 COPYHEADERS+=	${_dst} ${_src}
+GTHR_DEFAULT_SRC=	${_src}
 . endif
 .endfor
 
 .for _h _s in ${COPYHEADERS}
+.if ${_h} != "gthr-default.h"
 ${_h}: ${_s}
 	cp -pf ${.ALLSRC} ${.TARGET}
+.endif
 .endfor
+
+# In update builds, switching G_CONFIGLINKS (e.g. gthr-posix -> gthr-single)
+# may otherwise leave a stale gthr-default.h if timestamps do not force a copy.
+gthr-default.h: ${GTHR_DEFAULT_SRC} \
+    ${.CURDIR}/../../arch/${GCC_MACHINE_ARCH}/defs.mk
+	cp -pf ${GTHR_DEFAULT_SRC} ${.TARGET}
 
 # Get default targets including <bsd.inc.mk>.
 .include <bsd.prog.mk>

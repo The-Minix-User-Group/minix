@@ -22,6 +22,8 @@ INCS+=		${G_std_headers} ${G_c_base_headers}
 INCS+=		${G_c_compatibility_headers_extra}
 INCSDIR=	/usr/include/g++
 
+.include "${.CURDIR}/Makefile.includes"
+
 .PATH: ${DIST}/libstdc++-v3
 .PATH: ${DIST}/libstdc++-v3/libsupc++
 #.PATH: ${DIST}/libstdc++-v3/include/c_compatibility

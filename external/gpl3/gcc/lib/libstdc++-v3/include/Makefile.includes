@@ -7,3 +7,16 @@
 INCSDIR_${f:C,/,_,g}=	${INCSDIR}
 INCSNAME_${f:C,/,_,g}=	${f:T}
 .endfor
+
+.PRECIOUS:	${DESTDIR}${INCSDIR}
+incinstall::	${DESTDIR}${INCSDIR}
+
+${DESTDIR}${INCSDIR}: .EXEC
+	@if [ ! -d ${.TARGET} ] || [ -h ${.TARGET} ] ; then \
+		${_MKSHMSG_CREATE} ${.TARGET}; \
+		/bin/rm -rf ${.TARGET}; \
+		${_MKSHECHO} ${INSTALL_DIR} -o ${BINOWN} -g ${BINGRP} -m 755 \
+			${.TARGET}; \
+		${INSTALL_DIR} -o ${BINOWN} -g ${BINGRP} -m 755 \
+			${.TARGET}; \
+	fi
