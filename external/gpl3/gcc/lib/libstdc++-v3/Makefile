@@ -120,8 +120,20 @@ G_CONFIGLINKS:= ${G_CONFIGLINKS:S,libgcc/config/arm/unwind-arm.h,libgcc/unwind-g
 BUILDSYMLINKS+=        ${G_CONFIGLINKS}
 .for _src _dst in ${G_CONFIGLINKS}
 DPSRCS+=       ${_dst}
+.if ${_dst} == "enable-execute-stack.c"
+ENABLE_EXEC_STACK_SRC=	${_src}
+.endif
 .endfor
 .endif
+.endif
+
+# Keep enable-execute-stack.c aligned with the current arch defs in
+# incremental/update builds.
+.if defined(ENABLE_EXEC_STACK_SRC)
+enable-execute-stack.c: ${ENABLE_EXEC_STACK_SRC} \
+    ${.CURDIR}/arch/${LIBSTDCXX_MACHINE_ARCH}/defs.mk
+	rm -f ${.TARGET}
+	cp -pf ${ENABLE_EXEC_STACK_SRC} ${.TARGET}
 .endif
 
 .for f in compatibility-c++0x compatibility-atomic-c++0x \

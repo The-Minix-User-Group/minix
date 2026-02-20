@@ -187,8 +187,21 @@ DPSRCS+=	tconfig.h
 BUILDSYMLINKS+=	${G_CONFIGLINKS}
 .for _src _dst in ${G_CONFIGLINKS}
 DPSRCS+=	${_dst}
+.if ${_dst} == "enable-execute-stack.c"
+ENABLE_EXEC_STACK_SRC=	${_src}
+.endif
 .endfor
 .endif
+.endif
+
+# In update builds, stale symlinks can keep an old enable-execute-stack
+# implementation (e.g. mprotect variant) even after G_CONFIGLINKS changes.
+# Refresh the local source file from the selected arch source.
+.if defined(ENABLE_EXEC_STACK_SRC)
+enable-execute-stack.c: ${ENABLE_EXEC_STACK_SRC} \
+    ${.CURDIR}/../arch/${GCC_MACHINE_ARCH}/defs.mk
+	rm -f ${.TARGET}
+	cp -pf ${ENABLE_EXEC_STACK_SRC} ${.TARGET}
 .endif
 
 EXTRA_FAKEHEADERS=	options.h libgcc_tm.h
