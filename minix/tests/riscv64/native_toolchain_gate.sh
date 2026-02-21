@@ -152,9 +152,9 @@ echo "[native-gate] qemu script: $QEMU_SCRIPT"
 echo "[native-gate] disk image: $DISK_IMAGE"
 
 PREP_EXT2_CMD='prepare_ext2=PATH=/sbin:/bin:/usr/bin; test -x /service/ext2 && (minix-service up /service/ext2 >/dev/null 2>&1 || minix-service -c up /service/ext2 >/dev/null 2>&1 || true)'
-# In CI guest boots, /usr may not be mounted yet. Keep mount attempts bounded:
-# only try known partition nodes (avoid whole-disk nodes that may block).
-PREP_USR_MOUNT_CMD='prepare_usr_mount=PATH=/sbin:/bin:/usr/bin; if ! test -w /usr; then umount /usr >/dev/null 2>&1 || true; mount -t ext2 /dev/c0d0p2 /usr >/dev/null 2>&1 || mount -t ext2 /dev/c0d1p2 /usr >/dev/null 2>&1 || mount /usr >/dev/null 2>&1 || true; fi; test -w /usr'
+# In CI guest boots, /usr can be writable but still not the disk /usr that
+# carries native toolchain binaries. Remount if compiler binaries are missing.
+PREP_USR_MOUNT_CMD='prepare_usr_mount=PATH=/sbin:/bin:/usr/bin; if ! test -w /usr || ! (test -x /usr/bin/cc || test -x /usr/bin/gcc || test -x /usr/bin/clang); then umount /usr >/dev/null 2>&1 || true; mount -t ext2 /dev/c0d0p2 /usr >/dev/null 2>&1 || mount -t ext2 /dev/c0d1p2 /usr >/dev/null 2>&1 || mount /usr >/dev/null 2>&1 || true; fi; test -w /usr && (test -x /usr/bin/cc || test -x /usr/bin/gcc || test -x /usr/bin/clang)'
 PREP_TMP_CMD='prepare_tmp=PATH=/sbin:/bin:/usr/bin; test -w /usr'
 CC_DETECT_CMD='native_cc_detect=PATH=/sbin:/bin:/usr/bin; test -x /usr/bin/cc || test -x /usr/bin/gcc || test -x /usr/bin/clang'
 CXX_DETECT_CMD='native_cxx_detect=PATH=/sbin:/bin:/usr/bin; command -v c++ >/dev/null 2>&1 || command -v g++ >/dev/null 2>&1'
