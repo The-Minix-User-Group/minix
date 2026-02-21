@@ -1616,3 +1616,40 @@ minix/tests/riscv64/run_tests.sh native
 - `minix/tests/riscv64/native_toolchain_gate.sh`
 - `README-RISCV64.md`
 - `https://github.com/AvrovaDonz2026/minix/actions/runs/22218664841`
+
+### Entry 41 — Enforce Per-Command Native Toolchain Usability Gate (2026-02-21) / 强化 native 工具链逐命令可用性门禁
+**Workspace / 工作区**: `/home/donz/minix`  
+**Target / 目标**: `evbriscv64`  
+**Profile / 轮廓**: `obj.intrgcc`
+
+**Goal / 目标**:
+- Tighten CI so native GCC toolchain is not only present, but functionally usable.
+- 将 CI 从“命令存在/基础编译”升级为“逐命令可执行 + 真实产物验证 + 可运行产物验证”。
+
+**Change / 改动**:
+1. Upgraded `minix/tests/riscv64/native_toolchain_gate.sh` command matrix.
+2. Added strict per-command runtime checks (single boot, blocking):
+   - compiler/frontends: `cc/gcc/c++/g++/cpp(gcpp)`
+   - binutils core: `as/ld/ar/ranlib/nm/objcopy/objdump/readelf/strip`
+3. Added artifact-level checks around those commands:
+   - compile C objects via `cc/gcc`
+   - preprocess via `cpp/gcpp`
+   - assemble/link-relocatable/archive (`as/ld/ar/ranlib`)
+   - inspect/transform objects (`nm/objcopy/objdump/readelf/strip`)
+   - static C/C++ link-and-run executables in guest
+4. Hardened `/usr` preparation in native gate for CI variance:
+   - if `/usr` already writable, keep it
+   - else attempt common ext2 nodes before fallback mount path
+
+**Validation / 验证**:
+- Script syntax: `bash -n minix/tests/riscv64/native_toolchain_gate.sh` PASS.
+- `--help` path sanity check PASS.
+- Prior CI failure modes observed and addressed in sequence:
+  - `22249826170`: payload precheck false-negative (`usr/bin/cpp`)
+  - `22250528261`: native gate mount prep (`prepare_usr_mount` rc=1)
+
+**Evidence / 证据**:
+- `minix/tests/riscv64/native_toolchain_gate.sh`
+- `README-RISCV64.md`
+- `https://github.com/AvrovaDonz2026/minix/actions/runs/22249826170`
+- `https://github.com/AvrovaDonz2026/minix/actions/runs/22250528261`

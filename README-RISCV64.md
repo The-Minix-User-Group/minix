@@ -9,14 +9,14 @@ targeting the QEMU virt platform.
 ## 文档信息 / Document Info
 
 **中文**
-- 版本：1.28
-- 最后更新：2026-02-20
+- 版本：1.29
+- 最后更新：2026-02-21
 - 适用范围：evbriscv64（QEMU virt）
 - 文档性质：构建/运行/测试操作手册，不是开发计划
 
 **English**
-- Version: 1.28
-- Last updated: 2026-02-20
+- Version: 1.29
+- Last updated: 2026-02-21
 - Scope: evbriscv64 (QEMU virt)
 - Doc type: build/run/test manual, not a development plan
 
@@ -39,8 +39,9 @@ targeting the QEMU virt platform.
   `nightly-master-riscv64-YYYYMMDD-<sha>`，并将 5 件产物同步上传到
   workflow artifacts 与 GitHub Release（prerelease）。
 - Native toolchain N1/N2 已闭环：`native_toolchain_gate.sh` 在 fresh native
-  镜像上可稳定通过 `native_as_stdin`、`native_ar_ranlib`、
-  `native_hello_build`、`native_hello_link_run` 与 `native_cxx_link_run`。
+  镜像上可稳定通过“逐命令可执行验证”：
+  `cc/gcc/c++/g++/cpp(gcpp)/as/ld/ar/ranlib/nm/objcopy/objdump/readelf/strip`
+  以及 C/C++ 静态链接运行。
 - 已修复 VM 根因：`alloc_pages()` 在 RV64 上的 `NO_MEM` 哨兵宽度/符号扩展
   问题（`minix/servers/vm/alloc.c`），不再复现工具链路径下的 VM panic。
 - Release/Nightly 流水线中的 native gate 已升级为阻断式（blocking），并新增
@@ -77,9 +78,10 @@ targeting the QEMU virt platform.
 - The nightly workflow now uses the fixed tag format
   `nightly-master-riscv64-YYYYMMDD-<sha>` and publishes the same five build
   artifacts to both workflow artifacts and GitHub prerelease assets.
-- Native toolchain N1/N2 is now closed: `native_toolchain_gate.sh` passes
-  `native_as_stdin`, `native_ar_ranlib`, `native_hello_build`,
-  `native_hello_link_run`, and `native_cxx_link_run` on a fresh native image.
+- Native toolchain N1/N2 is now closed: `native_toolchain_gate.sh` now enforces
+  per-command usability checks on a fresh native image:
+  `cc/gcc/c++/g++/cpp(gcpp)/as/ld/ar/ranlib/nm/objcopy/objdump/readelf/strip`,
+  plus static C/C++ link-and-run validation.
 - VM root cause is fixed in `minix/servers/vm/alloc.c` (`NO_MEM` sentinel
   width/sign-extension handling in `alloc_pages()` on RV64), eliminating the
   previous VM panic reproducer in native toolchain paths.
@@ -747,10 +749,9 @@ minix/releasetools/riscv64/mkdisk.sh \
   -o $PWD/.ci-artifact-test/minix-native-toolchain.img \
   -s 1024 -u 768 -U
 
-# 自动化 native gate（来宾内验证 as/ld/ar/ranlib + cc -c）
-# 自动化 native gate（单次启动中验证：
-# as/ld/ar/ranlib + nm/objcopy/objdump/readelf/strip +
-# cc/c++ 编译与静态链接运行）
+# 自动化 native gate（单次启动中做严格可用性验证）：
+# cc/gcc/c++/g++/cpp(gcpp)/as/ld/ar/ranlib/nm/objcopy/objdump/readelf/strip
+# + C/C++ 静态链接运行（阻断式）
 ./minix/tests/riscv64/native_toolchain_gate.sh \
   --kernel obj.intrgcc/minix/kernel/kernel \
   --destdir obj.intrgcc/destdir.evbriscv64 \
@@ -964,5 +965,5 @@ MINIX is licensed under BSD. See LICENSE in the source tree.
 
 ---
 
-**最后更新 / Last updated**：2026-02-20  
-**版本 / Version**：1.28
+**最后更新 / Last updated**：2026-02-21  
+**版本 / Version**：1.29
