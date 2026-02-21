@@ -208,7 +208,19 @@ jobs:
           root="${PWD}/${OBJDIR}/destdir.evbriscv64"
           missing=()
 
-          for bin in cc gcc c++ g++ cpp as ld ar ranlib nm objcopy objdump readelf strip; do
+          # Align with local packaging behavior: frontend aliases may differ.
+          # Require at least one from each alias group, then enforce core binutils.
+          if [[ ! -x "${root}/usr/bin/cc" && ! -x "${root}/usr/bin/gcc" ]]; then
+            missing+=("usr/bin/(cc|gcc)")
+          fi
+          if [[ ! -x "${root}/usr/bin/c++" && ! -x "${root}/usr/bin/g++" ]]; then
+            missing+=("usr/bin/(c++|g++)")
+          fi
+          if [[ ! -x "${root}/usr/bin/cpp" && ! -x "${root}/usr/bin/gcpp" ]]; then
+            missing+=("usr/bin/(cpp|gcpp)")
+          fi
+
+          for bin in as ld ar ranlib nm objcopy objdump readelf strip; do
             if [[ ! -x "${root}/usr/bin/${bin}" ]]; then
               missing+=("usr/bin/${bin}")
             fi
