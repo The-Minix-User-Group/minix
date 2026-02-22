@@ -196,6 +196,19 @@ jobs:
             done < <(find "${destdir_root}/usr/include/g++" -type f -name 'c++config.h' -print0)
           fi
 
+          functexcept_src="${PWD}/external/gpl3/gcc/dist/libstdc++-v3/src/c++11/functexcept.cc"
+          if [[ ! -f "${functexcept_src}" ]]; then
+            echo "Missing ${functexcept_src}" >&2
+            exit 1
+          fi
+          sed -i \
+            -e 's/^#if _GLIBCXX_HAS_GTHREADS$/#if _GLIBCXX_HAS_GTHREADS \&\& !defined(_GLIBCXX_MINIX_NO_FUTURE)/' \
+            "${functexcept_src}"
+          if ! grep -q '_GLIBCXX_HAS_GTHREADS && !defined(_GLIBCXX_MINIX_NO_FUTURE)' "${functexcept_src}"; then
+            echo "Failed to patch ${functexcept_src}" >&2
+            exit 1
+          fi
+
       - name: Build distribution (obj.intrgcc)
         shell: bash
         run: |
