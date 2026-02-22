@@ -190,6 +190,24 @@ jobs:
             "${destdir_root}/usr/lib/libstdc++_pic.a" \
             "${destdir_root}/usr/include/g++/bits/c++config.h"
 
+          # Keep gthreads profile deterministic even when obj.intrgcc carries
+          # stale generated headers from earlier CI iterations.
+          sanitize_cxxconfig() {
+            local cfg="$1"
+            [[ -f "${cfg}" ]] || return 0
+            sed -i -E \
+              's@^#define[[:space:]]+_GLIBCXX_HAS_GTHREADS([[:space:]]+.*)?$@/* #undef _GLIBCXX_HAS_GTHREADS */@' \
+              "${cfg}"
+          }
+
+          sanitize_cxxconfig "${PWD}/external/gpl3/gcc/lib/libstdc++-v3/arch/riscv64/c++config.h"
+
+          if [[ -d "${destdir_root}/usr/include/g++" ]]; then
+            while IFS= read -r -d '' cfg; do
+              sanitize_cxxconfig "${cfg}"
+            done < <(find "${destdir_root}/usr/include/g++" -type f -name 'c++config.h' -print0)
+          fi
+
       - name: Build distribution (obj.intrgcc)
         shell: bash
         run: |
