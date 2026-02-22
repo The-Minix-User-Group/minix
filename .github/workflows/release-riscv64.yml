@@ -176,6 +176,14 @@ jobs:
             mkdir -p "${destdir_root}/usr/include/g++/${rel}"
           done
 
+      - name: Refresh ramdisk objs (obj.intrgcc)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The repository tracks obj.intrgcc; drop stale ramdisk artifacts so
+          # distribution always regenerates ramdisk system files from sources.
+          rm -rf "${OBJDIR}/minix/drivers/storage/ramdisk"
+
       - name: Build distribution (obj.intrgcc)
         shell: bash
         run: |
