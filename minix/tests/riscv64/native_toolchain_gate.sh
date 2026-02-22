@@ -153,10 +153,11 @@ echo "[native-gate] disk image: $DISK_IMAGE"
 
 # Keep each runtime command short: long single-line commands can be truncated
 # by the guest TTY line discipline and hang waiting for completion.
-PREP_EXT2_CMD='prepare_ext2=PATH=/sbin:/bin:/usr/bin; minix-service fi ext2 >/dev/null 2>&1 || (test -x /service/ext2 && minix-service up /service/ext2 >/dev/null 2>&1) || true'
+PREP_EXT2_ENTRY_CMD='prepare_ext2_entry=PATH=/sbin:/bin:/usr/bin; grep -q "service ext2" /etc/system.conf'
+PREP_EXT2_CMD='prepare_ext2=PATH=/sbin:/bin:/usr/bin; minix-service fi ext2 >/dev/null 2>&1 || minix-service up /service/ext2'
 PREP_USR_UMOUNT_CMD='prepare_usr_umount=PATH=/sbin:/bin:/usr/bin; umount /usr >/dev/null 2>&1 || true'
-PREP_USR_MOUNT_STAGE1_CMD='prepare_usr_mount_stage1=PATH=/sbin:/bin:/usr/bin; [ -x /usr/bin/cc -o -x /usr/bin/gcc ] || mount -e /dev/c0d0p3 /usr || mount /dev/c0d0p3 /usr'
-PREP_USR_MOUNT_STAGE2_CMD='prepare_usr_mount_stage2=PATH=/sbin:/bin:/usr/bin; [ -x /usr/bin/cc -o -x /usr/bin/gcc ] || mount -e /dev/c0d1p3 /usr || mount /dev/c0d1p3 /usr || true'
+PREP_USR_MOUNT_STAGE1_CMD='prepare_usr_mount_stage1=PATH=/sbin:/bin:/usr/bin; [ -x /usr/bin/cc -o -x /usr/bin/gcc ] || mount -e /dev/c0d0p3 /usr'
+PREP_USR_MOUNT_STAGE2_CMD='prepare_usr_mount_stage2=PATH=/sbin:/bin:/usr/bin; [ -x /usr/bin/cc -o -x /usr/bin/gcc ] || mount -e /dev/c0d1p3 /usr || true'
 PREP_USR_CHECK_CMD='prepare_usr_check=PATH=/sbin:/bin:/usr/bin; mount | grep " on /usr type " || (mount; false)'
 PREP_TMP_CMD='prepare_tmp=PATH=/sbin:/bin:/usr/bin; test -w /usr'
 CC_DETECT_CMD='native_cc_detect=PATH=/sbin:/bin:/usr/bin; test -x /usr/bin/cc || test -x /usr/bin/gcc || (mount | grep " on /usr type " || mount; ls -l /usr/bin/cc /usr/bin/gcc /usr/bin/clang 2>&1; false)'
@@ -209,6 +210,7 @@ probe_args=(
   "${base_probe_args[@]}"
   --require-disk-node
   --only-custom-cmds
+  --cmd "$PREP_EXT2_ENTRY_CMD"
   --cmd "$PREP_EXT2_CMD"
   --cmd "$PREP_USR_UMOUNT_CMD"
   --cmd "$PREP_USR_MOUNT_STAGE1_CMD"
