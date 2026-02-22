@@ -54,3 +54,7 @@ G_CONFIGLINKS=${GNUHOSTDIST}/libgcc/enable-execute-stack-empty.c  enable-execute
 # libstdc++ sources that require __gthread condition variable/thread types.
 G_SRC_SOURCES:=	${G_SRC_SOURCES:Ncompatibility-thread-c++0x.cc}
 G_CPP11_SOURCES:= ${G_CPP11_SOURCES:Ncondition_variable.cc:Nfuture.cc:Nmutex.cc:Nthread.cc}
+
+# Keep functexcept.cc aligned with the reduced source set above. Without
+# future.cc in this profile, avoid emitting future_* references here.
+CPPFLAGS.functexcept.cc+= -D_GLIBCXX_MINIX_NO_FUTURE=1
