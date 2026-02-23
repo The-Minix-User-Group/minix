@@ -1,7 +1,7 @@
 # MINIX RISC-V Port Issues / MINIX RISC-V 移植问题清单
 
-**Date / 日期**: 2026-02-20  
-**Version / 版本**: 1.35
+**Date / 日期**: 2026-02-23  
+**Version / 版本**: 1.36
 **Scope / 范围**: RISC-V 64-bit port, evidence includes file/line references.
 
 本文件记录 RISC-V 64 位移植的具体问题与证据（含文件/行号），并给出修复建议。  
@@ -1082,6 +1082,63 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
 - Residual note / 残留说明:
   - Optional `link+run` validation may still need a writable target filesystem
     path with sufficient inode budget (root mfs is inode-constrained by design).
+
+### 38) [DONE] release-riscv64 libstdc++ `functexcept` no-future gate stabilization / release-riscv64 中 libstdc++ `functexcept` no-future 门禁稳定化（已完成）
+- Evidence / 证据:
+  - First failure mode (run `22290330786`): step 8 warned that dist-source patch
+    marker was missing, then step 11 failed with unresolved `future_*` symbols in
+    `functexcept.o`.
+    - Patch warning: `/tmp/gha/run_22290330786/0_build-and-release.txt:38548`
+      (`Warning: patch marker not found ... functexcept.cc`)
+    - Compile still had no-future flag:
+      `/tmp/gha/run_22290330786/0_build-and-release.txt:106594`
+      (`-D_GLIBCXX_MINIX_NO_FUTURE=1`)
+    - Gate failure:
+      `/tmp/gha/run_22290330786/0_build-and-release.txt:174645-174701`
+      (`future_error` / `future_category` unresolved refs)
+  - Second failure mode (run `22291591002`): first throw-site patch attempt
+    injected preprocessor directives on the same line as `{`, causing build break
+    in step 9.
+    - Symptom:
+      `/tmp/gha/run_22291591002/0_build-and-release.txt:105799`
+      (`#else without #if`) and
+      `/tmp/gha/run_22291591002/0_build-and-release.txt:105802`
+      (`#endif without #if`)
+    - Instrumentation line shows malformed layout:
+      `/tmp/gha/run_22291591002/0_build-and-release.txt:38552`
+      (`{ #if !defined(_GLIBCXX_MINIX_NO_FUTURE)`)
+  - Final verification (run `22292140399`): libstdc++ gate passes and full release
+    pipeline succeeds.
+    - Thread-profile gate PASS:
+      `/tmp/gha/run_22292140399/0_build-and-release.txt:173064`
+      (`[native-toolchain] libstdc++ thread profile check PASS`)
+    - Job steps 9~18 all `success` (distribution, payload check, thread-profile
+      gate, artifact build, QEMU smoke, full suite, release publish).
+- Root cause / 根因:
+  - Dist snapshot variant of `functexcept.cc` did not reliably match the old
+    `_GLIBCXX_HAS_GTHREADS` substitution pattern, so source-level guard patch could
+    silently no-op.
+  - Initial throw-site patch used a replacement that could place `#if` inline with
+    `{`, which is invalid for preprocessor directive parsing.
+- Fix / 修复:
+  - Keep deterministic gthreads sanitization in refresh step:
+    `release-riscv64.yml` and `nightly-riscv64.yml` continue to sanitize
+    `c++config.h` (`/* #undef _GLIBCXX_HAS_GTHREADS */`).
+  - Replace throw-site patching with brace-aware multiline substitution to ensure
+    directive starts at line-begin and injects fallback path:
+    `__throw_system_error(__i)`.
+    - ` .github/workflows/release-riscv64.yml:216-227`
+    - ` .github/workflows/nightly-riscv64.yml:204-215`
+  - Preserve compile-time no-future intent for riscv64 `functexcept.cc`:
+    `external/gpl3/gcc/lib/libstdc++-v3/arch/riscv64/defs.mk:60`
+    (`CPPFLAGS.functexcept.cc+= -D_GLIBCXX_MINIX_NO_FUTURE=1`)
+- Commits / 提交:
+  - `abaa4e19e` (`ci: make functexcept patch check non-blocking`)
+  - `66e96e59a` (`ci: patch functexcept throw path for no-future profile`)
+  - `f8dbb337b` (`ci: fix functexcept no-future patch directive layout`)
+- Status / 状态:
+  - Closed in current working tree and CI-verified by successful release run
+    `22292140399`.
 
 ## Technical Debt / 技术债务
 
