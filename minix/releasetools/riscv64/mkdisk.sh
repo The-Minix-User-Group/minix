@@ -17,6 +17,7 @@ DESTDIR="${DESTDIR:-/usr/obj/minix/riscv64}"
 OUTPUT="${OUTPUT:-minix-riscv64.img}"
 SIZE_MB=256
 KERNEL=""
+INCLUDE_USR=0
 
 # Partition layout
 BOOT_SIZE_MB=8
@@ -24,10 +25,11 @@ ROOT_SIZE_MB=64
 USR_SIZE_MB=128
 HOME_SIZE_MB=0
 BOOT_START_MB=1
-ROOT_START_MB=9
-USR_START_MB=73
-EXT_START_MB=201
-LOG_START_MB=202
+ROOT_START_MB=0
+USR_START_MB=0
+EXT_START_MB=0
+LOG_START_MB=0
+RESERVED_MB=16
 MODULE_BASE_ADDR="${MODULE_BASE_ADDR:-0x81000000}"
 MODINFO_ADDR="${MODINFO_ADDR:-0x80f00000}"
 MODINFO_MAGIC="${MODINFO_MAGIC:-0x584e494d}"
@@ -74,21 +76,26 @@ Options:
     -d DESTDIR     Build output root (default: /usr/obj/minix/riscv64)
     -o OUTPUT      Output disk image (default: minix-riscv64.img)
     -s SIZE        Disk size in MB (default: 256)
+    -u SIZE        /usr partition size in MB (default: 128)
+    -U             Populate /usr partition from DESTDIR/destdir.evbriscv64/usr
     -k KERNEL      Explicit kernel ELF path
     -h             Show help
 
 Examples:
     $0 -d /home/user/minix/obj.intrgcc -o minix-evbriscv64.img
+    $0 -d /home/user/minix/obj.intrgcc -o minix-native.img -s 1024 -u 768 -U
     $0 -k /path/to/kernel -o minix-evbriscv64.img
 EOF
     exit 0
 }
 
-while getopts "d:o:s:k:h" opt; do
+while getopts "d:o:s:u:Uk:h" opt; do
     case $opt in
         d) DESTDIR="$OPTARG" ;;
         o) OUTPUT="$OPTARG" ;;
         s) SIZE_MB="$OPTARG" ;;
+        u) USR_SIZE_MB="$OPTARG" ;;
+        U) INCLUDE_USR=1 ;;
         k) KERNEL="$OPTARG" ;;
         h) usage ;;
         *) usage ;;
@@ -150,10 +157,15 @@ check_tools() {
 }
 
 calc_layout() {
-    HOME_SIZE_MB=$((SIZE_MB - BOOT_SIZE_MB - ROOT_SIZE_MB - USR_SIZE_MB - 16))
+    ROOT_START_MB=$((BOOT_START_MB + BOOT_SIZE_MB))
+    USR_START_MB=$((ROOT_START_MB + ROOT_SIZE_MB))
+    EXT_START_MB=$((USR_START_MB + USR_SIZE_MB))
+    LOG_START_MB=$((EXT_START_MB + 1))
+
+    HOME_SIZE_MB=$((SIZE_MB - BOOT_SIZE_MB - ROOT_SIZE_MB - USR_SIZE_MB - RESERVED_MB))
     if [ "$HOME_SIZE_MB" -lt 16 ]; then
         log_error "Disk size too small: $SIZE_MB MB"
-        log_error "Need at least 216 MB (recommended >=256 MB)"
+        log_error "Need at least $((BOOT_SIZE_MB + ROOT_SIZE_MB + USR_SIZE_MB + RESERVED_MB + 16)) MB"
         exit 1
     fi
 }
@@ -296,21 +308,24 @@ create_partitions() {
     log_info "Creating partition table..."
     if command -v parted >/dev/null 2>&1; then
         parted -s "$OUTPUT" mklabel msdos
-        parted -s "$OUTPUT" mkpart primary ext2 1MiB 9MiB
-        parted -s "$OUTPUT" mkpart primary ext2 9MiB 73MiB
-        parted -s "$OUTPUT" mkpart primary ext2 73MiB 201MiB
-        parted -s "$OUTPUT" mkpart extended 201MiB 100%
-        parted -s "$OUTPUT" mkpart logical ext2 202MiB 100%
+        parted -s "$OUTPUT" mkpart primary ext2 "${BOOT_START_MB}MiB" \
+            "$((BOOT_START_MB + BOOT_SIZE_MB))MiB"
+        parted -s "$OUTPUT" mkpart primary ext2 "${ROOT_START_MB}MiB" \
+            "$((ROOT_START_MB + ROOT_SIZE_MB))MiB"
+        parted -s "$OUTPUT" mkpart primary ext2 "${USR_START_MB}MiB" \
+            "$((USR_START_MB + USR_SIZE_MB))MiB"
+        parted -s "$OUTPUT" mkpart extended "${EXT_START_MB}MiB" 100%
+        parted -s "$OUTPUT" mkpart logical ext2 "${LOG_START_MB}MiB" 100%
         parted -s "$OUTPUT" set 1 boot on
     else
         cat << EOF | sfdisk --no-reread "$OUTPUT" >/dev/null
 label: dos
 unit: sectors
 
-p1 : start=2048, size=$((BOOT_SIZE_MB * 2048)), type=83, bootable
-p2 : start=$((2048 + BOOT_SIZE_MB * 2048)), size=$((ROOT_SIZE_MB * 2048)), type=83
-p3 : start=$((2048 + (BOOT_SIZE_MB + ROOT_SIZE_MB) * 2048)), size=$((USR_SIZE_MB * 2048)), type=83
-p4 : start=$((2048 + (BOOT_SIZE_MB + ROOT_SIZE_MB + USR_SIZE_MB) * 2048)), size=$((HOME_SIZE_MB * 2048)), type=83
+p1 : start=$((BOOT_START_MB * 2048)), size=$((BOOT_SIZE_MB * 2048)), type=83, bootable
+p2 : start=$((ROOT_START_MB * 2048)), size=$((ROOT_SIZE_MB * 2048)), type=83
+p3 : start=$((USR_START_MB * 2048)), size=$((USR_SIZE_MB * 2048)), type=83
+p4 : start=$((EXT_START_MB * 2048)), size=$((HOME_SIZE_MB * 2048)), type=83
 EOF
     fi
 }
@@ -371,15 +386,24 @@ EOF
 }
 
 build_filesystems() {
-    local stage_boot stage_root modinfo boot_txt boot_scr
-    local boot_img root_img stage_size max_bytes
+    local stage_boot stage_root stage_usr modinfo boot_txt boot_scr
+    local boot_img root_img usr_img stage_size max_bytes
     local i
 
     stage_boot=$(mktemp -d)
     stage_root=$(mktemp -d)
     TMPDIRS+=("$stage_boot" "$stage_root")
 
+    stage_usr=""
+    if [ "$INCLUDE_USR" -eq 1 ]; then
+        stage_usr=$(mktemp -d)
+        TMPDIRS+=("$stage_usr")
+    fi
+
     mkdir -p "$stage_boot" "$stage_root/boot/modules"
+    if [ -n "$stage_usr" ]; then
+        mkdir -p "$stage_usr"
+    fi
 
     modinfo=$(mktemp)
     boot_txt=$(mktemp)
@@ -400,6 +424,15 @@ build_filesystems() {
     for i in "${!MODULE_PATHS[@]}"; do
         cp "${MODULE_PATHS[$i]}" "$stage_root/boot/modules/${MODULE_NAMES[$i]}"
     done
+
+    if [ -n "$stage_usr" ]; then
+        if [ ! -d "$MODROOT/usr" ]; then
+            log_error "Missing /usr tree under module root: $MODROOT/usr"
+            exit 1
+        fi
+        log_info "Staging /usr payload..."
+        cp -a "$MODROOT/usr/." "$stage_usr/"
+    fi
 
     stage_size=$(du -sb "$stage_boot" | awk '{print $1}')
     max_bytes=$((BOOT_SIZE_MB * 1024 * 1024))
@@ -422,11 +455,29 @@ build_filesystems() {
     dd if=/dev/zero of="$boot_img" bs=1M count="$BOOT_SIZE_MB" status=none
     dd if=/dev/zero of="$root_img" bs=1M count="$ROOT_SIZE_MB" status=none
 
-    mke2fs -q -t ext2 -F -d "$stage_boot" "$boot_img"
-    mke2fs -q -t ext2 -F -d "$stage_root" "$root_img"
+    mke2fs -q -t ext2 -F -b 4096 -d "$stage_boot" "$boot_img"
+    mke2fs -q -t ext2 -F -b 4096 -d "$stage_root" "$root_img"
 
     write_partition_image "$boot_img" "$BOOT_START_MB"
     write_partition_image "$root_img" "$ROOT_START_MB"
+
+    if [ -n "$stage_usr" ]; then
+        stage_size=$(du -sb "$stage_usr" | awk '{print $1}')
+        max_bytes=$((USR_SIZE_MB * 1024 * 1024))
+        if [ "$stage_size" -ge "$max_bytes" ]; then
+            log_error "/usr payload too large (${stage_size} bytes >= ${max_bytes} bytes)"
+            log_error "Increase -u or use a larger -s disk size"
+            exit 1
+        fi
+
+        usr_img=$(mktemp)
+        TMPFILES+=("$usr_img")
+        dd if=/dev/zero of="$usr_img" bs=1M count="$USR_SIZE_MB" status=none
+        mke2fs -q -t ext2 -F -b 4096 -d "$stage_usr" "$usr_img"
+        write_partition_image "$usr_img" "$USR_START_MB"
+    else
+        log_info "Skipping /usr partition payload (enable with -U)"
+    fi
 }
 
 print_summary() {
@@ -441,6 +492,8 @@ print_summary() {
     echo "Size:       ${mib} MiB (${bytes} bytes)"
     echo "Kernel:     $KERNEL_IMAGE"
     echo "Modroot:    $MODROOT"
+    echo "Layout:     boot=${BOOT_SIZE_MB}M root=${ROOT_SIZE_MB}M usr=${USR_SIZE_MB}M home=${HOME_SIZE_MB}M"
+    echo "UsrPayload: $([ "$INCLUDE_USR" -eq 1 ] && echo enabled || echo disabled)"
     echo ""
     echo "Boot firmware command (disk-only):"
     echo "  qemu-system-riscv64 -machine virt -m 256M -nographic \\"

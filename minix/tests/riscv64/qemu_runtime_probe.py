@@ -23,7 +23,7 @@ import time
 SKIP_RC = 2
 
 FATAL_RE = re.compile(
-    r"panic|PANIC|SIGSEGV|Segmentation fault|assertion failed|kernel panic|PM: coredump signal",
+    r"\bpanic\b|SIGSEGV|Segmentation fault|assertion failed|kernel panic|PM: coredump signal",
     re.IGNORECASE,
 )
 
@@ -136,6 +136,18 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--cmd-timeout", type=int, default=45)
     parser.add_argument("--require-disk-node", action="store_true")
+    parser.add_argument(
+        "--cmd",
+        action="append",
+        default=[],
+        metavar="NAME=COMMAND",
+        help="append extra runtime command check (can be repeated)",
+    )
+    parser.add_argument(
+        "--only-custom-cmds",
+        action="store_true",
+        help="run only custom --cmd checks and skip default meminfo/ps/srv checks",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.qemu_script):
@@ -190,20 +202,25 @@ def main() -> int:
             log_tail(buf, "Shell prompt not detected")
             return 1
 
-        commands: list[tuple[str, str]] = [
-            (
-                "meminfo",
-                "PATH=/sbin:/bin:/usr/bin; cat /proc/meminfo >/dev/null 2>&1",
-            ),
-            (
-                "ps_aux",
-                "PATH=/sbin:/bin:/usr/bin; ps -aux >/dev/null 2>&1",
-            ),
-            (
-                "srv_status",
-                "PATH=/sbin:/bin:/usr/bin; /sbin/minix-service sysctl srv_status >/dev/null 2>&1",
-            ),
-        ]
+        commands: list[tuple[str, str]] = []
+
+        if not args.only_custom_cmds:
+            commands.extend(
+                [
+                    (
+                        "meminfo",
+                        "PATH=/sbin:/bin:/usr/bin; cat /proc/meminfo >/dev/null 2>&1",
+                    ),
+                    (
+                        "ps_aux",
+                        "PATH=/sbin:/bin:/usr/bin; ps -aux >/dev/null 2>&1",
+                    ),
+                    (
+                        "srv_status",
+                        "PATH=/sbin:/bin:/usr/bin; /sbin/minix-service sysctl srv_status >/dev/null 2>&1",
+                    ),
+                ]
+            )
 
         if args.require_disk_node:
             commands.append(
@@ -212,6 +229,22 @@ def main() -> int:
                     "PATH=/sbin:/bin:/usr/bin; test -e /dev/c0d0",
                 )
             )
+
+        for raw in args.cmd:
+            if "=" not in raw:
+                log(f"Invalid --cmd (missing '='): {raw}")
+                return 1
+            name, command = raw.split("=", 1)
+            name = name.strip()
+            command = command.strip()
+            if not name or not command:
+                log(f"Invalid --cmd (empty name or command): {raw}")
+                return 1
+            commands.append((name, command))
+
+        if not commands:
+            log("SKIP: no runtime commands configured")
+            return SKIP_RC
 
         for name, command in commands:
             if not run_command(io, name, command, args.cmd_timeout):

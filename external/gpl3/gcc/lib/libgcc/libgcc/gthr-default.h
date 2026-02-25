@@ -1,1 +1,1 @@
-/root/minix/external/gpl3/gcc/dist/libgcc/gthr-single.h
+../../../dist/libgcc/gthr-single.h

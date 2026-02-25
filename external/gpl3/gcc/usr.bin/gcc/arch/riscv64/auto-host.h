@@ -791,7 +791,7 @@
 /* Define to 1 if we found a declaration for 'madvise', otherwise define to 0.
    */
 #ifndef USED_FOR_TARGET
-#define HAVE_DECL_MADVISE 1
+#define HAVE_DECL_MADVISE 0
 #endif
 
 
@@ -1333,7 +1333,7 @@
 
 /* Define to 1 if you have the `madvise' function. */
 #ifndef USED_FOR_TARGET
-#define HAVE_MADVISE 1
+#define HAVE_MADVISE 0
 #endif
 
 
@@ -2063,4 +2063,3 @@
 #ifndef USED_FOR_TARGET
 #define vfork fork
 #endif
-

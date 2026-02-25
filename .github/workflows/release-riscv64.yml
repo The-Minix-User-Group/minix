@@ -149,7 +149,83 @@ jobs:
             -V ACTIVE_OBJC=gcc \
             -V MKGCC=yes \
             -V MKGCCCMDS=yes \
+            -V MKCXX=yes \
+            -V MKLIBSTDCXX=yes \
             tools
+
+      - name: Prepare GCC include install dirs (obj.intrgcc)
+        shell: bash
+        run: |
+          set -euo pipefail
+          destdir_root="${PWD}/${OBJDIR}/destdir.${MACHINE}"
+          src_include_root="${PWD}/external/gpl3/gcc/dist/libstdc++-v3/include"
+
+          if [[ ! -d "${src_include_root}" ]]; then
+            echo "Missing libstdc++ include tree: ${src_include_root}" >&2
+            exit 1
+          fi
+
+          mkdir -p "${destdir_root}/usr/include/gcc-4.8"
+          mkdir -p "${destdir_root}/usr/include/g++"
+
+          # Mirror the libstdc++ include directory layout under DESTDIR so
+          # install(1) never fails mkstemp on nested targets.
+          find "${src_include_root}" -mindepth 1 -type d -print0 | \
+          while IFS= read -r -d '' src_dir; do
+            rel="${src_dir#${src_include_root}/}"
+            mkdir -p "${destdir_root}/usr/include/g++/${rel}"
+          done
+
+      - name: Refresh ramdisk and libstdc++ objs (obj.intrgcc)
+        shell: bash
+        run: |
+          set -euo pipefail
+          destdir_root="${OBJDIR}/destdir.${MACHINE}"
+          # The repository tracks obj.intrgcc; drop stale artifacts that can
+          # leak host/thread profile mismatches into release images.
+          rm -rf "${OBJDIR}/minix/drivers/storage/ramdisk"
+          rm -rf "${OBJDIR}/external/gpl3/gcc/lib/libstdc++-v3"
+          rm -f \
+            "${destdir_root}/usr/lib/libstdc++.a" \
+            "${destdir_root}/usr/lib/libstdc++_pic.a" \
+            "${destdir_root}/usr/include/g++/bits/c++config.h"
+
+          # Keep gthreads profile deterministic even when obj.intrgcc carries
+          # stale generated headers from earlier CI iterations.
+          sanitize_cxxconfig() {
+            local cfg="$1"
+            [[ -f "${cfg}" ]] || return 0
+            sed -i -E \
+              's@^#define[[:space:]]+_GLIBCXX_HAS_GTHREADS([[:space:]]+.*)?$@/* #undef _GLIBCXX_HAS_GTHREADS */@' \
+              "${cfg}"
+          }
+
+          sanitize_cxxconfig "${PWD}/external/gpl3/gcc/lib/libstdc++-v3/arch/riscv64/c++config.h"
+
+          if [[ -d "${destdir_root}/usr/include/g++" ]]; then
+            while IFS= read -r -d '' cfg; do
+              sanitize_cxxconfig "${cfg}"
+            done < <(find "${destdir_root}/usr/include/g++" -type f -name 'c++config.h' -print0)
+          fi
+
+          functexcept_src="${PWD}/external/gpl3/gcc/dist/libstdc++-v3/src/c++11/functexcept.cc"
+          if [[ ! -f "${functexcept_src}" ]]; then
+            echo "Missing ${functexcept_src}" >&2
+            exit 1
+          fi
+          # Some upstream snapshots don't use _GLIBCXX_HAS_GTHREADS here.
+          # Patch the throw site directly so the no-future profile is stable.
+          if ! grep -q '__throw_system_error(__i);' "${functexcept_src}"; then
+            perl -0777 -i -pe \
+              's@\{\s*_GLIBCXX_THROW_OR_ABORT\s*\(\s*future_error\s*\(\s*make_error_code\s*\(\s*future_errc\s*\(\s*__i\s*\)\s*\)\s*\)\s*\)\s*;@{\n#if !defined(_GLIBCXX_MINIX_NO_FUTURE)\n    _GLIBCXX_THROW_OR_ABORT(future_error(make_error_code(future_errc(__i))));\n#else\n    __throw_system_error(__i);\n#endif\n@g' \
+              "${functexcept_src}"
+          fi
+          if ! grep -q '__throw_system_error(__i);' "${functexcept_src}"; then
+            echo "Failed: no MINIX future fallback found in ${functexcept_src}" >&2
+            exit 1
+          fi
+          grep -nE '__throw_future_error|future_errc|_GLIBCXX_MINIX_NO_FUTURE|__throw_system_error' \
+            "${functexcept_src}" | head -n 20 || true
 
       - name: Build distribution (obj.intrgcc)
         shell: bash
@@ -166,9 +242,9 @@ jobs:
             -V RISCV_ARCH_FLAGS='-march=RV64IMAFD -mcmodel=medany' \
             -V NOGCCERROR=yes \
             -V MKGCC=yes \
-            -V MKGCCCMDS=no \
-            -V MKCXX=no \
-            -V MKLIBSTDCXX=no \
+            -V MKGCCCMDS=yes \
+            -V MKCXX=yes \
+            -V MKLIBSTDCXX=yes \
             -V MKLIBOBJC=no \
             -V MKLIBGOMP=no \
             -V MKATF=no \
@@ -176,14 +252,100 @@ jobs:
             -V CHECKFLIST_FLAGS='-m -e' \
             distribution
 
+      - name: Verify native toolchain payload (DESTDIR)
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${PWD}/${OBJDIR}/destdir.evbriscv64"
+          missing=()
+
+          # Align with local packaging behavior: frontend aliases may differ.
+          # Require at least one from each alias group, then enforce core binutils.
+          if [[ ! -x "${root}/usr/bin/cc" && ! -x "${root}/usr/bin/gcc" ]]; then
+            missing+=("usr/bin/(cc|gcc)")
+          fi
+          if [[ ! -x "${root}/usr/bin/c++" && ! -x "${root}/usr/bin/g++" ]]; then
+            missing+=("usr/bin/(c++|g++)")
+          fi
+          if [[ ! -x "${root}/usr/bin/cpp" && ! -x "${root}/usr/bin/gcpp" ]]; then
+            missing+=("usr/bin/(cpp|gcpp)")
+          fi
+
+          for bin in as ld ar ranlib nm objcopy objdump readelf strip; do
+            if [[ ! -x "${root}/usr/bin/${bin}" ]]; then
+              missing+=("usr/bin/${bin}")
+            fi
+          done
+
+          for entry in \
+            usr/lib/libgcc.a \
+            usr/lib/libgcc_eh.a \
+            usr/lib/libstdc++.a \
+            usr/include/stdio.h \
+            usr/include/g++/bits/c++config.h; do
+            if [[ ! -e "${root}/${entry}" ]]; then
+              missing+=("${entry}")
+            fi
+          done
+
+          if [[ "${#missing[@]}" -ne 0 ]]; then
+            echo "[native-toolchain] missing payload entries:" >&2
+            printf '  - %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+          echo "[native-toolchain] payload check PASS"
+
+      - name: Verify libstdc++ thread profile (DESTDIR)
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${PWD}/${OBJDIR}/destdir.evbriscv64"
+          tooldir="$(find "${PWD}/${OBJDIR}" -maxdepth 1 -type d -name 'tooldir.*' -print -quit)"
+          if [[ -z "${tooldir}" ]]; then
+            echo "Missing tooldir under ${PWD}/${OBJDIR}" >&2
+            exit 1
+          fi
+
+          ar="${tooldir}/bin/riscv64-elf32-minix-ar"
+          nm="${tooldir}/bin/riscv64-elf32-minix-nm"
+          lib="${root}/usr/lib/libstdc++.a"
+          for tool in "${ar}" "${nm}"; do
+            if [[ ! -x "${tool}" ]]; then
+              echo "Missing tool: ${tool}" >&2
+              exit 1
+            fi
+          done
+          if [[ ! -f "${lib}" ]]; then
+            echo "Missing libstdc++ archive: ${lib}" >&2
+            exit 1
+          fi
+
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "${tmp}"' EXIT
+          (
+            cd "${tmp}"
+            "${ar}" x "${lib}" functexcept.o
+            "${nm}" -u functexcept.o >undef.txt
+          )
+
+          if grep -Eq 'future_category|future_error' "${tmp}/undef.txt"; then
+            echo "[native-toolchain] libstdc++ mismatch: functexcept.o unexpectedly references future_*" >&2
+            cat "${tmp}/undef.txt" >&2
+            exit 1
+          fi
+
+          echo "[native-toolchain] libstdc++ thread profile check PASS"
+
       - name: Build release artifacts
         id: package
         shell: bash
         run: |
           set -euo pipefail
           version_tag="${{ steps.meta.outputs.safe_tag }}"
-          short_sha="$(git rev-parse --short=12 "${GITHUB_SHA}")"
-          base_name="minix-cat-${version_tag}-${short_sha}-riscv64"
+          ci_stamp="$(date -u +%Y%m%d%H%M%S)"
+          short_sha="$(git rev-parse --short=11 "${GITHUB_SHA}")"
+          base_name="minix-cat-${version_tag}-riscv64-ci-${ci_stamp}-${short_sha}"
 
           image_name="${base_name}.img"
           image_path="/tmp/${image_name}"
@@ -198,8 +360,12 @@ jobs:
           kernel_path="${PWD}/${OBJDIR}/minix/kernel/kernel"
           destdir_root="${PWD}/${OBJDIR}/destdir.evbriscv64"
 
-          OUTPUT="${image_path}" DESTDIR="${PWD}/${OBJDIR}" \
-            minix/releasetools/riscv64/mkdisk.sh
+          minix/releasetools/riscv64/mkdisk.sh \
+            -d "${OBJDIR}" \
+            -o "${image_path}" \
+            -s 1024 \
+            -u 768 \
+            -U
 
           gzip -n -9 -c "${image_path}" >"${image_gz_path}"
 
@@ -227,6 +393,7 @@ jobs:
               >"$(basename "${sums_path}")"
           )
 
+          echo "ci_stamp=${ci_stamp}" >>"${GITHUB_OUTPUT}"
           echo "short_sha=${short_sha}" >>"${GITHUB_OUTPUT}"
           echo "artifact_base=${base_name}" >>"${GITHUB_OUTPUT}"
           echo "image_name=${image_name}" >>"${GITHUB_OUTPUT}"
@@ -247,6 +414,13 @@ jobs:
           QEMU_SMOKE_LOG: /tmp/qemu-neofetch-smoke.log
         run: |
           set -euo pipefail
+          smoke_image="${CI_IMAGE_PATH}.smoke"
+          cp -f "${CI_IMAGE_PATH}" "${smoke_image}"
+          cleanup_smoke_image() {
+            rm -f "${smoke_image}" || true
+          }
+          trap cleanup_smoke_image EXIT
+          export CI_SMOKE_IMAGE_PATH="${smoke_image}"
           python3 - <<'PY'
           import os
           import re
@@ -256,7 +430,7 @@ jobs:
           import subprocess
           import sys
 
-          image_path = os.environ["CI_IMAGE_PATH"]
+          image_path = os.environ["CI_SMOKE_IMAGE_PATH"]
           log_path = os.environ["QEMU_SMOKE_LOG"]
           uboot_path = "/usr/lib/u-boot/qemu-riscv64_smode/uboot.elf"
 
@@ -400,6 +574,61 @@ jobs:
           if-no-files-found: ignore
           path: /tmp/qemu-neofetch-smoke.log
 
+      - name: Full riscv64 test suite (blocking)
+        id: full_suite
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="/tmp/riscv64-full-suite.log"
+          image="${{ steps.package.outputs.image_path }}"
+          echo "[full-suite] log: ${log}"
+          : >"${log}"
+          export KERNEL="${OBJDIR}/minix/kernel/kernel"
+          export DESTDIR="${OBJDIR}/destdir.evbriscv64"
+          export SMOKE_DISK_IMAGE="${image}"
+          export SMOKE_DD_UNSAFE=1
+          export SMOKE_ROUNDS=1
+          export SMOKE_GATE_TIMEOUT=180
+          export NATIVE_GATE_TIMEOUT=300
+          export NATIVE_GATE_CMD_TIMEOUT=180
+          run_case() {
+            local name="$1"
+            shift
+            echo "[full-suite] >>> ${name}" | tee -a "${log}"
+            if "$@" >>"${log}" 2>&1; then
+              echo "[full-suite] ${name}: PASS" | tee -a "${log}"
+            else
+              local rc="$?"
+              echo "[full-suite] ${name}: FAIL (rc=${rc})" | tee -a "${log}"
+              return "${rc}"
+            fi
+          }
+
+          if run_case build ./minix/tests/riscv64/run_tests.sh build \
+             && run_case user ./minix/tests/riscv64/run_tests.sh user \
+             && run_case native ./minix/tests/riscv64/run_tests.sh native \
+             && run_case kernel ./minix/tests/riscv64/run_tests.sh kernel \
+             && run_case gate timeout 900 ./minix/tests/riscv64/run_tests.sh gate; then
+            echo "rc=0" >>"${GITHUB_OUTPUT}"
+            echo "[full-suite] rc=0"
+          else
+            rc=$?
+            echo "rc=${rc}" >>"${GITHUB_OUTPUT}"
+            echo "[full-suite] rc=${rc}"
+            tail -n 200 "${log}" || true
+            exit "${rc}"
+          fi
+
+      - name: Upload full test suite log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: riscv64-release-full-suite-log-${{ steps.meta.outputs.safe_tag }}-${{ steps.package.outputs.short_sha }}
+          if-no-files-found: ignore
+          path: |
+            /tmp/riscv64-full-suite.log
+
       - name: Upload build artifacts to workflow
         uses: actions/upload-artifact@v4
         with:
@@ -427,3 +656,24 @@ jobs:
             ${{ steps.package.outputs.elf_path }}
             ${{ steps.package.outputs.sysroot_path }}
             ${{ steps.package.outputs.sums_path }}
+
+      - name: Write release summary
+        if: always()
+        shell: bash
+        run: |
+          suite_rc="${{ steps.full_suite.outputs.rc }}"
+          [ -n "${suite_rc}" ] || suite_rc="n/a"
+          {
+            echo "## riscv64 Release CI"
+            echo ""
+            echo "- Release tag: \`${{ steps.meta.outputs.release_tag }}\`"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- CI stamp (UTC): \`${{ steps.package.outputs.ci_stamp }}\`"
+            echo "- Artifact base: \`${{ steps.package.outputs.artifact_base }}\`"
+            echo ""
+            echo "### Full Test Suite (blocking)"
+            echo "- Runner sequence: \`build -> user -> native -> kernel -> gate(timeout 900s)\`"
+            echo "- Environment: \`SMOKE_DD_UNSAFE=1 SMOKE_ROUNDS=1\`"
+            echo "- Suite rc: \`${suite_rc}\`"
+            echo "- Logs: artifact \`riscv64-release-full-suite-log-${{ steps.meta.outputs.safe_tag }}-${{ steps.package.outputs.short_sha }}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

@@ -34,10 +34,8 @@ MLINKS+=	cpp.1 gcpp.1 cpp.1 cccp.1
 TEXINFO=	cpp.texi
 INFOFLAGS=	-I${DIST}/gcc/doc -I${DIST}/gcc/doc/include -I.
 
-.if !defined(__MINIX)
 LDADD+=		-lintl
 DPADD+=		${LIBINTL}
-.endif # !defined(__MINIX)
 
 .include "../Makefile.frontend"
 

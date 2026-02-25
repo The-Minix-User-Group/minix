@@ -135,6 +135,8 @@ PROGRAMS+=		lwip
 dir.lwip:=	minix/net/lwip
 PROGRAMS+=		virtio_blk_mmio
 dir.virtio_blk_mmio:= minix/drivers/storage/virtio_blk_mmio
+PROGRAMS+=		ext2
+dir.ext2:=	minix/fs/ext2
 .if ${RAMDISK_TESTS} == "1"
 PROGRAMS+=		test_virtio_blk_mmio
 dir.test_virtio_blk_mmio:= minix/tests/riscv64

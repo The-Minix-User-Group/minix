@@ -47,8 +47,8 @@ COPTS.c-typeck.c=	-Wno-stack-protector
 CPPFLAGS.default-c.c+=	-I${BACKENDOBJ}
 
 .if defined(__MINIX)
-LDADD+=	${LIBMPC} ${LIBMPFR} ${LIBGMP} -lz -lm
-DPADD+=	${LIBMPC} ${LIBMPFR} ${LIBGMP} ${LIBZ} ${LIBM}
+LDADD+=	${LIBMPC} ${LIBMPFR} ${LIBGMP} -lintl -lz -lm
+DPADD+=	${LIBMPC} ${LIBMPFR} ${LIBGMP} ${LIBINTL} ${LIBZ} ${LIBM}
 .else
 LDADD+=	${LIBMPC} ${LIBMPFR} ${LIBGMP} -lintl -lz -lm
 DPADD+=	${LIBMPC} ${LIBMPFR} ${LIBGMP} ${LIBINTL} ${LIBZ} ${LIBM}

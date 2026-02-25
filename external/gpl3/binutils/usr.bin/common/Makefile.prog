@@ -38,13 +38,8 @@ PROGDPLIBS+=	iberty	${TOP}/${BFDSUBDIR}/libiberty
 
 .include <bsd.prog.mk>
 
-.if !defined(__MINIX)
 LDADD+=		-lintl -lz -lm
 DPADD+=		${LIBINTL} ${LIBZ} ${LIBM}
-.else
-LDADD+=		-lz -lm
-DPADD+=		${LIBZ} ${LIBM}
-.endif # !defined(__MINIX)
 
 # Override the .y.c and .y.l rules *after* <bsd.prog.mk>
 .y.c .l.c:

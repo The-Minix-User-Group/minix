@@ -18,13 +18,8 @@ COPTS.lto-lang.c+=	-Wno-stack-protector
 
 LDADD+= ${LIBIBERTYOBJ}/libiberty.a
 DPADD+= ${LIBIBERTYOBJ}/libiberty.a
-.if !defined(__MINIX)
 LDADD+=	${LIBIBERTY} ${LIBMPC} ${LIBMPFR} ${LIBGMP} -lintl -lz -lm
 DPADD+=	${LIBIBERTY} ${LIBMPC} ${LIBMPFR} ${LIBGMP} ${LIBINTL} ${LIBZ} ${LIBM}
-.else
-LDADD+=	${LIBIBERTY} ${LIBMPC} ${LIBMPFR} ${LIBGMP} -lz -lm
-DPADD+=	${LIBIBERTY} ${LIBMPC} ${LIBMPFR} ${LIBGMP} ${LIBZ} ${LIBM}
-.endif # !defined(__MINIX)
 
 .PATH: ${DIST}/gcc/lto  ${DIST}/gcc # ${DIST}/gcc/c ${DIST}/gcc/c-family ${DIST}/gcc/config
 .PATH: ${G_out_file:H}

@@ -10,6 +10,8 @@
 INCS=		${G_tr1_impl_headers}
 INCSDIR=	/usr/include/g++/tr1_impl
 
+.include "${.CURDIR}/../Makefile.includes"
+
 # Get default targets including <bsd.inc.mk>.
 .include <bsd.prog.mk>
 

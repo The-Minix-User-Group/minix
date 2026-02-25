@@ -3,7 +3,7 @@
 # RISC-V 64-bit test runner for MINIX 3
 #
 # Usage:
-#   ./run_tests.sh [kernel|user|build|gate|all]
+#   ./run_tests.sh [kernel|user|build|gate|native|all]
 #
 
 set -e
@@ -11,7 +11,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MINIX_ROOT="${SCRIPT_DIR}/../../.."
 QEMU="${QEMU:-qemu-system-riscv64}"
-KERNEL_DEFAULT="${MINIX_ROOT}/minix/kernel/obj/kernel"
+KERNEL_DEFAULT="${MINIX_ROOT}/obj.intrgcc/minix/kernel/kernel"
+if [ ! -f "$KERNEL_DEFAULT" ]; then
+    KERNEL_DEFAULT="${MINIX_ROOT}/minix/kernel/obj/kernel"
+fi
 KERNEL="${KERNEL:-$KERNEL_DEFAULT}"
 TIMEOUT="${TIMEOUT:-60}"
 
@@ -26,13 +29,15 @@ skipped=0
 
 TOOLDIR_DEFAULT=""
 DESTDIR_DEFAULT=""
-for d in "$MINIX_ROOT"/obj/tooldir.*; do
+for d in "$MINIX_ROOT"/obj.intrgcc/tooldir.* "$MINIX_ROOT"/obj/tooldir.*; do
     if [ -x "$d/bin/riscv64-elf32-minix-gcc" ]; then
         TOOLDIR_DEFAULT="$d"
         break
     fi
 done
-if [ -d "$MINIX_ROOT/obj/destdir.evbriscv64" ]; then
+if [ -d "$MINIX_ROOT/obj.intrgcc/destdir.evbriscv64" ]; then
+    DESTDIR_DEFAULT="$MINIX_ROOT/obj.intrgcc/destdir.evbriscv64"
+elif [ -d "$MINIX_ROOT/obj/destdir.evbriscv64" ]; then
     DESTDIR_DEFAULT="$MINIX_ROOT/obj/destdir.evbriscv64"
 fi
 NBMAKE_DEFAULT=""
@@ -429,6 +434,49 @@ run_smoke_gate() {
     fi
 }
 
+run_native_toolchain_gate() {
+    local gate_script="$SCRIPT_DIR/native_toolchain_gate.sh"
+    local bootmodroot="${DESTDIR:-$DESTDIR_DEFAULT}"
+    local args=()
+
+    log_info "Running native toolchain gate..."
+
+    if [ ! -x "$gate_script" ]; then
+        log_skip "native_toolchain_gate.sh not found, skipping native gate"
+        return
+    fi
+    if [ ! -f "$KERNEL" ]; then
+        log_skip "Kernel not found at $KERNEL, skipping native gate"
+        return
+    fi
+    if [ -z "$bootmodroot" ] || [ ! -d "$bootmodroot" ]; then
+        log_skip "DESTDIR not found, skipping native gate"
+        return
+    fi
+
+    args+=(--kernel "$KERNEL" --destdir "$bootmodroot")
+    if [ -n "${SMOKE_DISK_IMAGE:-}" ]; then
+        args+=(--disk-image "$SMOKE_DISK_IMAGE")
+    fi
+    if [ -n "${NATIVE_GATE_TIMEOUT:-}" ]; then
+        args+=(--timeout "$NATIVE_GATE_TIMEOUT")
+    fi
+    if [ -n "${NATIVE_GATE_CMD_TIMEOUT:-}" ]; then
+        args+=(--cmd-timeout "$NATIVE_GATE_CMD_TIMEOUT")
+    fi
+
+    if "$gate_script" "${args[@]}"; then
+        log_pass "Native toolchain gate"
+    else
+        rc=$?
+        if [ "$rc" -eq 2 ]; then
+            log_skip "Native toolchain gate (skipped)"
+        else
+            log_fail "Native toolchain gate"
+        fi
+    fi
+}
+
 #
 # Main
 #
@@ -445,6 +493,9 @@ case "${1:-all}" in
     gate)
         run_smoke_gate
         ;;
+    native)
+        run_native_toolchain_gate
+        ;;
     all)
         run_build_tests
         echo ""
@@ -453,9 +504,11 @@ case "${1:-all}" in
         run_kernel_tests
         echo ""
         run_smoke_gate
+        echo ""
+        run_native_toolchain_gate
         ;;
     *)
-        echo "Usage: $0 [kernel|user|build|gate|all]"
+        echo "Usage: $0 [kernel|user|build|gate|native|all]"
         exit 1
         ;;
 esac

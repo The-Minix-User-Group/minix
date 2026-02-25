@@ -41,7 +41,7 @@ static int free_page_cache_size = 0;
 static phys_bytes mem_low, mem_high;
 
 static void free_pages(phys_bytes addr, int pages);
-static phys_bytes alloc_pages(int pages, int flags);
+static phys_clicks alloc_pages(int pages, int flags);
 
 #if SANITYCHECKS
 struct {
@@ -401,11 +401,11 @@ static int findbit(int low, int startscan, int pages, int memflags, int *len)
 /*===========================================================================*
  *				alloc_pages				     *
  *===========================================================================*/
-static phys_bytes alloc_pages(int pages, int memflags)
+static phys_clicks alloc_pages(int pages, int memflags)
 {
-	phys_bytes boundary16 = 16 * 1024 * 1024 / VM_PAGE_SIZE;
-	phys_bytes boundary1  =  1 * 1024 * 1024 / VM_PAGE_SIZE;
-	phys_bytes mem = NO_MEM, i;	/* page number */
+	phys_clicks boundary16 = 16 * 1024 * 1024 / VM_PAGE_SIZE;
+	phys_clicks boundary1  =  1 * 1024 * 1024 / VM_PAGE_SIZE;
+	phys_clicks mem = NO_MEM, i;	/* page number */
 	int maxpage = NUMBER_PHYSICAL_PAGES - 1;
 	static int lastscan = -1;
 	int startscan, run_length;
@@ -436,9 +436,11 @@ static phys_bytes alloc_pages(int pages, int memflags)
 	else	startscan = maxpage;
 
 	if(mem == NO_MEM)
-		mem = findbit(0, startscan, pages, memflags, &run_length);
+		mem = (phys_clicks)findbit(0, startscan, pages, memflags,
+		    &run_length);
 	if(mem == NO_MEM)
-		mem = findbit(0, maxpage, pages, memflags, &run_length);
+		mem = (phys_clicks)findbit(0, maxpage, pages, memflags,
+		    &run_length);
 	if(mem == NO_MEM)
 		return NO_MEM;
 

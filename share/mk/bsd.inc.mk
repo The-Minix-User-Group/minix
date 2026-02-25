@@ -14,6 +14,25 @@ incinstall::	# ensure existence
 
 # -c is forced on here, in order to preserve modtimes for "make depend"
 __incinstall: .USE
+	@case "${.TARGET:H}" in \
+	${DESTDIR}/*) \
+		_d='${.TARGET:H}'; \
+		_dirs=''; \
+		while [ "$${_d}" != "${DESTDIR}" ]; do \
+			_dirs=" $${_d}$${_dirs}"; \
+			_nd=$${_d%/*}; \
+			[ "$${_nd}" = "$${_d}" ] && break; \
+			_d="$${_nd}"; \
+		done; \
+		_dirs=" ${DESTDIR}$${_dirs}"; \
+		;; \
+	*) \
+		_dirs=" ${.TARGET:H}"; \
+		;; \
+	esac; \
+	for _d in $${_dirs}; do \
+		${INSTALL_DIR} -o ${BINOWN} -g ${BINGRP} -m 755 "$${_d}"; \
+	done
 	@cmp -s ${.ALLSRC} ${.TARGET} > /dev/null 2>&1 || \
 	    (${_MKSHMSG_INSTALL} ${.TARGET}; \
 	     ${_MKSHECHO} "${INSTALL_FILE} -c -o ${BINOWN} -g ${BINGRP} \

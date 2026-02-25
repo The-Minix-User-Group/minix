@@ -1,7 +1,7 @@
 # MINIX RISC-V Port Issues / MINIX RISC-V 移植问题清单
 
-**Date / 日期**: 2026-02-18  
-**Version / 版本**: 1.32
+**Date / 日期**: 2026-02-23  
+**Version / 版本**: 1.36
 **Scope / 范围**: RISC-V 64-bit port, evidence includes file/line references.
 
 本文件记录 RISC-V 64 位移植的具体问题与证据（含文件/行号），并给出修复建议。  
@@ -41,6 +41,7 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
   4) `#14` DT 多段内存/保留区解析补齐
   5) `[DONE]` `#30` multi-smoke 默认复用磁盘镜像，削弱跨次可复现性
   6) `[DONE]` `#31` smoke/repro 门禁对退出语义与宿主可移植性校验不足
+  7) `#37` native toolchain（来宾内 `as/ld/ar/ranlib` + `cc/gcc/clang`）闭环未完成
 - P3 / 低优先（可维护性与技术债）:
   1) `#19` kernel/VM/RS 无条件调试日志收敛
   2) `#11` `minimal_kernel` RISC-V 适配
@@ -1049,6 +1050,95 @@ Issue IDs are historically stable and intentionally non-contiguous; archived IDs
 - Suggested fix / 修复建议:
   - Gate noisy traces behind build-time/runtime debug flags (or strict rate limits).
   - Keep only milestone-level boot markers enabled by default.
+
+### 37) [DONE] Native toolchain command set closure in guest image / 来宾 native 工具链命令集闭环（已完成）
+- Evidence / 证据:
+  - Root cause fixed in `minix/servers/vm/alloc.c`: `alloc_pages()` used
+    page-index variables as `phys_bytes` (64-bit on RV64), while `NO_MEM`
+    sentinel is a 32-bit click value (`0xFFFFFFFE`). On RV64 this could
+    sign-extend `findbit()` failures and bypass `mem == NO_MEM` checks,
+    causing bitmap access with invalid negative page indexes and VM panic.
+  - Fix applied:
+    - switch `alloc_pages` return type and local page-index variables from
+      `phys_bytes` to `phys_clicks`;
+    - cast `findbit()` return values to `phys_clicks` before comparison/use.
+  - 2026-02-20 strict runtime revalidation on a fresh native image
+    (`mkdisk.sh -d obj.intrgcc -o .ci-artifact-test/minix-native-gcc-test-fixed.img -s 1024 -u 768 -U`)
+    passed all staged toolchain gates:
+    `prepare_ext2`, `prepare_usr_mount`, `native_cc_detect`,
+    `native_tools`, `native_hello_preprocess`, `native_hello_to_asm`,
+    `native_as_stdin`, `native_hello_build`.
+  - Interactive smoke also passed on the same fixed image:
+    shell prompt, `neofetch`, and shutdown chain.
+  - `native_toolchain_gate.sh` exit-code handling has been corrected
+    (previously nonzero probe failures could be misreported as success).
+  - CI enforcement updated:
+    - `.github/workflows/release-riscv64.yml`: native gate is now blocking.
+    - `.github/workflows/nightly-riscv64.yml`: native gate is now blocking.
+- Impact / 影响:
+  - Native C toolchain usability for guest-side `as`/`cc -c` is now stable
+    under QEMU runtime gate and can be enforced in release/nightly CI.
+  - This removes the previous VM panic blocker for native toolchain closure.
+- Residual note / 残留说明:
+  - Optional `link+run` validation may still need a writable target filesystem
+    path with sufficient inode budget (root mfs is inode-constrained by design).
+
+### 38) [DONE] release-riscv64 libstdc++ `functexcept` no-future gate stabilization / release-riscv64 中 libstdc++ `functexcept` no-future 门禁稳定化（已完成）
+- Evidence / 证据:
+  - First failure mode (run `22290330786`): step 8 warned that dist-source patch
+    marker was missing, then step 11 failed with unresolved `future_*` symbols in
+    `functexcept.o`.
+    - Patch warning: `/tmp/gha/run_22290330786/0_build-and-release.txt:38548`
+      (`Warning: patch marker not found ... functexcept.cc`)
+    - Compile still had no-future flag:
+      `/tmp/gha/run_22290330786/0_build-and-release.txt:106594`
+      (`-D_GLIBCXX_MINIX_NO_FUTURE=1`)
+    - Gate failure:
+      `/tmp/gha/run_22290330786/0_build-and-release.txt:174645-174701`
+      (`future_error` / `future_category` unresolved refs)
+  - Second failure mode (run `22291591002`): first throw-site patch attempt
+    injected preprocessor directives on the same line as `{`, causing build break
+    in step 9.
+    - Symptom:
+      `/tmp/gha/run_22291591002/0_build-and-release.txt:105799`
+      (`#else without #if`) and
+      `/tmp/gha/run_22291591002/0_build-and-release.txt:105802`
+      (`#endif without #if`)
+    - Instrumentation line shows malformed layout:
+      `/tmp/gha/run_22291591002/0_build-and-release.txt:38552`
+      (`{ #if !defined(_GLIBCXX_MINIX_NO_FUTURE)`)
+  - Final verification (run `22292140399`): libstdc++ gate passes and full release
+    pipeline succeeds.
+    - Thread-profile gate PASS:
+      `/tmp/gha/run_22292140399/0_build-and-release.txt:173064`
+      (`[native-toolchain] libstdc++ thread profile check PASS`)
+    - Job steps 9~18 all `success` (distribution, payload check, thread-profile
+      gate, artifact build, QEMU smoke, full suite, release publish).
+- Root cause / 根因:
+  - Dist snapshot variant of `functexcept.cc` did not reliably match the old
+    `_GLIBCXX_HAS_GTHREADS` substitution pattern, so source-level guard patch could
+    silently no-op.
+  - Initial throw-site patch used a replacement that could place `#if` inline with
+    `{`, which is invalid for preprocessor directive parsing.
+- Fix / 修复:
+  - Keep deterministic gthreads sanitization in refresh step:
+    `release-riscv64.yml` and `nightly-riscv64.yml` continue to sanitize
+    `c++config.h` (`/* #undef _GLIBCXX_HAS_GTHREADS */`).
+  - Replace throw-site patching with brace-aware multiline substitution to ensure
+    directive starts at line-begin and injects fallback path:
+    `__throw_system_error(__i)`.
+    - ` .github/workflows/release-riscv64.yml:216-227`
+    - ` .github/workflows/nightly-riscv64.yml:204-215`
+  - Preserve compile-time no-future intent for riscv64 `functexcept.cc`:
+    `external/gpl3/gcc/lib/libstdc++-v3/arch/riscv64/defs.mk:60`
+    (`CPPFLAGS.functexcept.cc+= -D_GLIBCXX_MINIX_NO_FUTURE=1`)
+- Commits / 提交:
+  - `abaa4e19e` (`ci: make functexcept patch check non-blocking`)
+  - `66e96e59a` (`ci: patch functexcept throw path for no-future profile`)
+  - `f8dbb337b` (`ci: fix functexcept no-future patch directive layout`)
+- Status / 状态:
+  - Closed in current working tree and CI-verified by successful release run
+    `22292140399`.
 
 ## Technical Debt / 技术债务
 

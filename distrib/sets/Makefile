@@ -118,6 +118,40 @@ list_set_files_base list_set_files_x list_set_files_ext \
 METALOG_REMOVE_DUPLICATES= \
 	${TOOL_AWK} '{ a[$$1] = $$0; } END { for (f in a) print a[f]; }'
 
+# Some install paths are recorded with a trailing slash (for example
+# temporary directories under /boot/minix).  Normalise these paths so
+# mtree does not reject them as empty leaf elements.
+METALOG_NORMALIZE_PATHS= \
+	${TOOL_AWK} '{ \
+		path = $$1; \
+		gsub(/\/+/, "/", path); \
+		while (path != "/" && path ~ /\/$$/) \
+			sub(/\/$$/, "", path); \
+		$$1 = path; \
+		print $$0; \
+	    }'
+
+# Some update builds contain file entries without all ancestor directory
+# entries in METALOG (for example after partial/include-only installs).
+# mtree requires every parent directory to be specified explicitly.
+METALOG_ADD_MISSING_DIRS= \
+	${TOOL_AWK} '{ path = $$1; rec[path] = $$0; } \
+	    END { \
+		for (path in rec) { \
+			d = path; \
+			while (sub("/[^/]+$$", "", d)) { \
+				if (d == "." || d == "") \
+					break; \
+				if (!(d in rec) && !(d in add)) \
+					add[d] = 1; \
+			} \
+		} \
+		for (path in add) \
+			print path " type=dir uname=root gname=wheel mode=0755"; \
+		for (path in rec) \
+			print rec[path]; \
+	    }'
+
 .if ${MKUNPRIVED} == "no"
 METALOG.unpriv=
 sanitise_METALOG: .PHONY
@@ -129,7 +163,9 @@ METALOG.unpriv= -M ${METALOG}.sanitised
 sanitise_METALOG: .PHONY ${METALOG}.sanitised
 ${METALOG}.sanitised: ${METALOG}
 	<${METALOG} \
+	    ${METALOG_NORMALIZE_PATHS} | \
 	    ${${MKUPDATE} != "no" :? ${METALOG_REMOVE_DUPLICATES} | :} \
+	    ${METALOG_ADD_MISSING_DIRS} | \
 	    sort | ${TOOL_MTREE} -CSM -k all -R time -N ${NETBSDSRCDIR}/etc \
 	    >${METALOG}.new
 	mv ${METALOG}.new ${METALOG}.sanitised

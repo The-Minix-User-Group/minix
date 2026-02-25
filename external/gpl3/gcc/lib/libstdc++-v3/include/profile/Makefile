@@ -12,6 +12,8 @@ GNUHOSTDIST=	${DIST}
 INCS=		${G_profile_headers} ${G_profile_impl_headers}
 INCSDIR=	/usr/include/g++/profile
 
+.include "${.CURDIR}/../Makefile.includes"
+
 .PATH: ${DIST}/libstdc++-v3/include/profile
 
 # Get default targets including <bsd.inc.mk>.

@@ -61,11 +61,12 @@ $
 		mmc ---755 0 0 mmc
 #endif
 #if defined(__riscv) || defined(__riscv_xlen)
-		virtio_blk_mmio ---755 0 0 virtio_blk_mmio
-		virtio_net_mmio ---755 0 0 virtio_net_mmio
-		lwip ---755 0 0 lwip
+			virtio_blk_mmio ---755 0 0 virtio_blk_mmio
+			virtio_net_mmio ---755 0 0 virtio_net_mmio
+			lwip ---755 0 0 lwip
+			ext2 ---755 0 0 ext2
 #endif
-		mfs ---755 0 0 mfs
+			mfs ---755 0 0 mfs
 		procfs ---755 0 0 procfs
 		input ---755 0 0 input
 	$

@@ -22,6 +22,19 @@ CLEANFILES+=	mm_malloc.h
 
 INCSDIR=	/usr/include/gcc-4.8
 
+.PRECIOUS:	${DESTDIR}${INCSDIR}
+incinstall::	${DESTDIR}${INCSDIR}
+
+${DESTDIR}${INCSDIR}: .EXEC
+	@if [ ! -d ${.TARGET} ] || [ -h ${.TARGET} ] ; then \
+		${_MKSHMSG_CREATE} ${.TARGET}; \
+		/bin/rm -rf ${.TARGET}; \
+		${_MKSHECHO} ${INSTALL_DIR} -o ${BINOWN} -g ${BINGRP} -m 755 \
+			${.TARGET}; \
+		${INSTALL_DIR} -o ${BINOWN} -g ${BINGRP} -m 755 \
+			${.TARGET}; \
+	fi
+
 .include <bsd.prog.mk>
 
 .PATH: ${G_EXTRA_HEADERS:H:O:u}

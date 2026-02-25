@@ -129,10 +129,5 @@ cleandir: __cleanldscripts
 __cleanldscripts:
 	-rm -rf ldscripts tmpdir
 
-.if !defined(__MINIX)
 LDADD+=		-lintl -lz
 DPADD+=		${LIBINTL} ${LIBZ}
-.else
-LDADD+=		-lz
-DPADD+=		${LIBZ}
-.endif # !defined(__MINIX)

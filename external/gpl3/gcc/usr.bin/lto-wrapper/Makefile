@@ -16,13 +16,8 @@ LDADD+=                 ${LIBIBERTYOBJ}/libiberty.a
 
 # VER_CPPFLAGS from Makefile.inc
 
-.if !defined(__MINIX)
 LDADD+=	${LIBMPC} ${LIBMPFR} ${LIBGMP} -lintl -lz -lm
 DPADD+=	${LIBMPC} ${LIBMPFR} ${LIBGMP} ${LIBINTL} ${LIBZ} ${LIBM}
-.else
-LDADD+=	${LIBMPC} ${LIBMPFR} ${LIBGMP} -lz -lm
-DPADD+=	${LIBMPC} ${LIBMPFR} ${LIBGMP} ${LIBZ} ${LIBM}
-.endif # !defined(__MINIX)
 
 .PATH: ${DIST}/gcc ${DIST}/gcc/c ${DIST}/gcc/c-family ${DIST}/gcc/config
 .PATH: ${G_out_file:H}

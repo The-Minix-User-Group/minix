@@ -22,7 +22,10 @@ SUBDIR+=ipf
 SUBDIR+= iscsi 
 .endif
 .if (${MKKYUA} != "no")
-SUBDIR+= lutok kyua-testers kyua-cli kyua-atf-compat
+SUBDIR+= lutok
+.if !defined(__MINIX)
+SUBDIR+= kyua-testers kyua-cli kyua-atf-compat
+.endif
 .endif
 .if (${MKLDAP} != "no")
 SUBDIR+= openldap

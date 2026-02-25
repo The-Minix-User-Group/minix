@@ -70,7 +70,7 @@ CPPFLAGS.strstream.cc=	-I$(GLIBCPP_INCLUDE_DIR)/backward -Wno-deprecated
 # XXX also need this for some PCHs.
 CPPFLAGS.atomic.cc = -std=gnu++0x
 CPPFLAGS.compatibility-c++0x.cc = -std=gnu++0x
-CPPFLAGS.functexcept.cc = -std=gnu++0x
+CPPFLAGS.functexcept.cc+= -std=gnu++0x
 CPPFLAGS.hash_c++0x.cc = -std=gnu++0x
 CPPFLAGS.hashtable_c++0x.cc = -std=gnu++0x
 CPPFLAGS.limits.cc = -std=gnu++0x
@@ -117,11 +117,27 @@ G_CONFIGLINKS:= ${G_CONFIGLINKS:S,libgcc/config/arm/unwind-arm.h,libgcc/unwind-g
 
 .if ${MKGCC} != "no"
 .if defined(G_CONFIGLINKS) && !empty(G_CONFIGLINKS)
-BUILDSYMLINKS+=        ${G_CONFIGLINKS}
 .for _src _dst in ${G_CONFIGLINKS}
-DPSRCS+=       ${_dst}
-.endfor
+.if ${_dst} == "enable-execute-stack.c"
+ENABLE_EXEC_STACK_SRC=	${_src}
+.else
+BUILDSYMLINKS+=	${_src} ${_dst}
+DPSRCS+=	${_dst}
 .endif
+.endfor
+.if defined(ENABLE_EXEC_STACK_SRC)
+DPSRCS+=	enable-execute-stack.c
+.endif
+.endif
+.endif
+
+# Keep enable-execute-stack.c aligned with the current arch defs in
+# incremental/update builds.
+.if defined(ENABLE_EXEC_STACK_SRC)
+enable-execute-stack.c: ${ENABLE_EXEC_STACK_SRC} \
+    ${.CURDIR}/arch/${LIBSTDCXX_MACHINE_ARCH}/defs.mk
+	rm -f ${.TARGET}
+	cp -pf ${ENABLE_EXEC_STACK_SRC} ${.TARGET}
 .endif
 
 .for f in compatibility-c++0x compatibility-atomic-c++0x \

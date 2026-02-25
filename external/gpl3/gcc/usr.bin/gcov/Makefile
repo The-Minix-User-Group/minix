@@ -26,9 +26,7 @@ CFLAGS:=	${CXXFLAGS} -Wno-stack-protector
 .include "../Makefile.libiberty"
 .include "../Makefile.libdecnumber"
 
-.if !defined(__MINIX)
 LDADD+=		-lintl
 DPADD+=		${LIBINTL}
-.endif # !defined(__MINIX)
 
 .PATH: ${DIST}/gcc

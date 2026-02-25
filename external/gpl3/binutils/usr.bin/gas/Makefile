@@ -39,10 +39,5 @@ as.info:	bfdver.texi
 .include <bsd.prog.mk>
 .include <bsd.info.mk>
 
-.if !defined(__MINIX)
 LDADD+=		-lintl -lz -lm
 DPADD+=		${LIBINTL} ${LIBZ} ${LIBM}
-.else
-LDADD+=		-lz -lm
-DPADD+=		${LIBZ} ${LIBM}
-.endif # !defined(__MINIX)

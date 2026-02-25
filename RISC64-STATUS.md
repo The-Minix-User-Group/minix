@@ -1,7 +1,7 @@
 # MINIX RISC-V 64-bit Port Status / MINIX RISC-V 64 位移植状态
 
-**Date / 日期**: 2026-02-18  
-**Version / 版本**: 1.13
+**Date / 日期**: 2026-02-20  
+**Version / 版本**: 1.15
 **Status / 状态**: Phase 2 stabilization — boots to shell; P0 closed and key P1 hygiene fixes landed
 **Progress / 进度**: ~80% (boot/userland path stabilized; runtime-aware gate hardened; core follow-ups remain)
 
@@ -52,6 +52,10 @@
   （详见 `issue.md` `#34`）。
 - 新发现待修：`ping6 fe80::...%vio0` 在用户态出现 `SIGSEGV (bad addr 0x0)`，
   属于 scoped link-local 诊断路径崩溃（见 `issue.md` `#35`）。
+- Native toolchain 进入 Stage N1/N2 推进：已新增构建入口
+  `minix/tests/riscv64/native_toolchain_build.sh` 与自动验收脚本
+  `minix/tests/riscv64/native_toolchain_gate.sh`，用于来宾内验证
+  `as/ld/ar/ranlib` 与本地 `hello.c` 编译运行闭环。
 - 仍有待闭环风险：`procfs` safecopy 回退噪声（#17）。
 
 **English**
@@ -107,6 +111,10 @@
   `Permission denied` failures (`issue.md` `#34`).
 - New open follow-up: `ping6 fe80::...%vio0` can still crash in userspace
   (`SIGSEGV`, `bad addr 0x0`) on the scoped link-local path (`issue.md` `#35`).
+- Native toolchain work has entered Stage N1/N2 with both a build helper
+  (`minix/tests/riscv64/native_toolchain_build.sh`) and an automated in-guest
+  gate (`minix/tests/riscv64/native_toolchain_gate.sh`) to validate
+  `as/ld/ar/ranlib` and native `hello.c` compile-and-run closure.
 - Remaining open risk: procfs safecopy retry noise (#17).
 
 ## Build Status / 构建状态
@@ -177,6 +185,12 @@
   （见 `/tmp/qemu-memfix.log` 与 `/tmp/qemu-neofetch-memfix.log`）。
 - `neofetch` 默认服务探测模式已从 `off` 切换为 `auto`，优先读取 `/proc/service`；
   `NEOFETCH_SERVICE_PROBE=ps` 仍可显式启用旧 `ps` 探测路径。
+- 2026-02-20：修复 VM `alloc_pages()` 在 RV64 上的 `NO_MEM` 哨兵宽度/符号扩展问题
+  （`minix/servers/vm/alloc.c`），消除 `native_as_stdin` 与 `cc -c` 路径的 VM panic 触发点。
+  在 fresh native 镜像
+  （`.ci-artifact-test/minix-native-gcc-test-fixed.img`）上，
+  `native_toolchain_gate.sh` 全链路通过（含 `native_as_stdin`、`native_hello_build`）。
+  同时 release/nightly 流水中的 native gate 已升级为阻断式（blocking）。
 
 **English**
 - Boot path is stable to the `#` shell prompt; init and core services complete basic startup handshake.
@@ -220,6 +234,13 @@
 - `neofetch` default service probe switched from `off` to `auto`, preferring
   `/proc/service`; the old `ps` path remains available via
   `NEOFETCH_SERVICE_PROBE=ps`.
+- 2026-02-20: fixed RV64 `NO_MEM` sentinel width/sign-extension mismatch in
+  VM `alloc_pages()` (`minix/servers/vm/alloc.c`), removing the VM panic
+  reproducer on `native_as_stdin` and `cc -c`.
+  Strict revalidation passes on a fresh native image
+  (`.ci-artifact-test/minix-native-gcc-test-fixed.img`) with full
+  `native_toolchain_gate.sh` coverage.
+  Native toolchain gate in release/nightly workflows is now blocking.
 
 ## Key Issues (Snapshot) / 关键问题（摘要）
 
@@ -246,16 +267,21 @@
 **中文**
 1) 修复 #16：收敛 VFS 服务端点“先写后验”路径，补齐代际安全校验。
 2) 继续收敛 #17（统计/限流 + 负载下验证），区分噪声与真实功能缺陷。
-3) 在 clean 环境做一次从 `fetch.sh` 到 `tools/binutils` 的复验，确认 #24 补丁可重复生效。
-4) 在稳定后恢复动态装载链路（`MKPIC/MKPICLIB`）并验证最小动态程序。
-5) 将 `repro_build_gate.sh` 纳入例行流水（至少每日一次），验证构建链路不依赖手工注入。
+3) 将 native toolchain 阻断门禁持续运行在 release/nightly，并补充可写介质场景下
+   的可选 `link+run` 验收（规避 root mfs inode 上限带来的假阴性）。
+4) 在 clean 环境做一次从 `fetch.sh` 到 `tools/binutils` 的复验，确认 #24 补丁可重复生效。
+5) 在稳定后恢复动态装载链路（`MKPIC/MKPICLIB`）并验证最小动态程序。
+6) 将 `repro_build_gate.sh` 纳入例行流水（至少每日一次），验证构建链路不依赖手工注入。
 
 **English**
 1) Fix #16 by tightening VFS endpoint-generation validation on service remap paths.
 2) Continue closing #17 with counters/rate-limit + stress validation.
-3) Re-run from clean `fetch.sh` to `tools/binutils` and confirm #24 patch reproducibility.
-4) Restore dynamic loader path (`MKPIC/MKPICLIB`) and test a minimal dynamic binary.
-5) Run `repro_build_gate.sh` in routine CI (at least daily) to enforce source-driven reproducibility.
+3) Keep native toolchain gate blocking in release/nightly and add optional
+   writable-filesystem `link+run` acceptance to avoid false negatives from
+   root mfs inode limits.
+4) Re-run from clean `fetch.sh` to `tools/binutils` and confirm #24 patch reproducibility.
+5) Restore dynamic loader path (`MKPIC/MKPICLIB`) and test a minimal dynamic binary.
+6) Run `repro_build_gate.sh` in routine CI (at least daily) to enforce source-driven reproducibility.
 
 ## Success Criteria / 下一里程碑判定
 

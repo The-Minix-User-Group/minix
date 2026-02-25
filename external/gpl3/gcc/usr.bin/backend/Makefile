@@ -180,8 +180,13 @@ auto-build.h: gmp.h Makefile
 			--build=`${HOST_SH} ${GNUHOSTDIST}/config.guess` \
 			--host=`${HOST_SH} ${GNUHOSTDIST}/config.guess` \
 			--target=${MACHINE_GNU_PLATFORM} && \
-		mv auto-host.h ../auto-build.h) && \
-	rm -rf .ab
+			mv auto-host.h ../auto-build.h) && \
+		rm -rf .ab
+.if defined(__MINIX)
+	${TOOL_SED} -e 's/^#define HAVE_MADVISE 1$$/#define HAVE_MADVISE 0/' \
+		auto-build.h > auto-build.h.tmp
+	mv auto-build.h.tmp auto-build.h
+.endif
 
 #
 # These are copies of files we build for the build host that are used

@@ -17,10 +17,8 @@ CPPFLAGS+=	-DCONFIGURE_SPECS="\"\"" \
 LINKS+=		${BINDIR}/g++ ${BINDIR}/c++
 .endif # defined(__MINIX) && ${HAVE_LLVM:Uno} == "no"
 
-.if !defined(__MINIX)
 LDADD+=		-lintl
 DPADD+=		${LIBINTL}
-.endif # !defined(__MINIX)
 
 .include "../Makefile.frontend"
 
